@@ -1,0 +1,34 @@
+# Web3 and Blockchain
+web3>=7.0.0
+eth-account>=0.13.6
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+
+# Machine Learning
+xgboost==2.1.1
+scikit-learn==1.5.2
+shap==0.46.0
+joblib==1.4.2
+
+# Feature Engineering
+networkx==3.3
+
+# Backend Service
+fastapi==0.115.0
+uvicorn==0.30.6
+apscheduler==3.10.4
+httpx==0.27.2
+pydantic==2.9.2
+
+# Async
+asyncio-throttle==1.0.2
+aiohttp==3.10.5
+
+# Utilities
+python-dotenv==1.0.1
+rich==13.9.1
+loguru==0.7.2
+tqdm==4.66.5

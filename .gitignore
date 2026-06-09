@@ -1,0 +1,37 @@
+cat > .gitignore << 'EOF'
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/node_modules/
+
+# ML Models (large binary files)
+interrogator/models/*.joblib
+interrogator/models/*.json
+interrogator/models/*.pkl
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+EOF
