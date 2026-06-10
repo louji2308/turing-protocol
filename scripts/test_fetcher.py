@@ -10,7 +10,7 @@ load_dotenv()
 rpc = os.getenv('MANTLE_TESTNET_RPC')
 fetcher = MantleDataFetcher(rpc)
 
-test_address = '0xfdaE6B5f5A8802e47c48dEa56157406c5a54C700'
+test_address = '0x31f692c240dEf9300a824C4b28dfE056584dB305'
 
 df = fetcher.fetch_wallet_transactions(test_address, max_txs=50)
 
