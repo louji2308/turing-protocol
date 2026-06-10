@@ -36,7 +36,7 @@ class FeaturePreprocessor:
 
         feature_cols = [
             c for c in df.columns
-            if c not in ["label", "source"]
+            if c not in ["label", "source", "wallet_address"]
         ]
 
         self.feature_names = feature_cols

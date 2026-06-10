@@ -1,11 +1,12 @@
 # Web3 and Blockchain
-web3>=7.0.0
-eth-account>=0.13.6
+web3==6.20.0
+eth-account==0.11.3
 
 # Data Processing
 pandas==2.2.2
 numpy==1.26.4
 scipy==1.13.1
+pyarrow==17.0.0
 
 # Machine Learning
 xgboost==2.1.1
