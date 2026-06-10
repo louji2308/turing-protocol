@@ -10,15 +10,20 @@ def make_synthetic_df(n=80, seed=42, mode='human'):
     rng = np.random.default_rng(seed)
     if mode == 'human':
         delays = rng.lognormal(mean=2.5, sigma=1.2, size=n)
-        gas_prices = rng.choice([1e9, 2e9, 3e9, 5e9, 10e9], n)
+        gas_prices = rng.choice(
+            np.array([1_000_000_000, 2_000_000_000, 3_000_000_000,
+                      5_000_000_000, 10_000_000_000], dtype=np.int64),
+            n
+        )
         hours = rng.integers(8, 23, n)
         days = rng.integers(0, 5, n)
-        failures = rng.choice([0,1], n, p=[0.97, 0.03])
+        failures = np.zeros(n, dtype=np.int64)
+        failures[rng.choice(n, max(1, n // 12), replace=False)] = 1
         values = rng.lognormal(mean=1, sigma=1.5, size=n) * 1e18
         protocols = rng.choice(['proto_a','proto_b','proto_c','unknown','proto_d'], n)
     else:
-        delays = np.full(n, 10.0) + rng.normal(0, 0.01, n)
-        gas_prices = np.full(n, 2e9)
+        delays = np.clip(rng.normal(0.5, 0.05, n), 0.01, 2.0)
+        gas_prices = np.full(n, 2_000_000_000, dtype=np.int64)
         hours = (np.arange(n) % 24).astype(int)
         days = (np.arange(n) % 7).astype(int)
         failures = np.zeros(n, dtype=int)
@@ -29,14 +34,14 @@ def make_synthetic_df(n=80, seed=42, mode='human'):
     wallet = '0x' + 'a' * 40
 
     df = pd.DataFrame({
-        'timestamp': timestamps.astype(int),
+        'timestamp': timestamps.astype(np.int64),
         'block_number': np.arange(1000, 1000+n),
         'from_addr': [wallet]*n,
         'to_addr': list(protocols),
-        'value_wei': values.astype(int),
+        'value_wei': np.clip(values, 0, 9_200_000_000_000_000_000).astype(np.int64),
         'gas_limit': np.full(n, 100000),
         'gas_used': np.full(n, 80000),
-        'gas_price': gas_prices.astype(int),
+        'gas_price': gas_prices.astype(np.int64),
         'failed': failures,
         'input_data': ['0x12345678'+'0'*56]*n,
         'is_sender': [True]*n,

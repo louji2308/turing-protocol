@@ -31,7 +31,7 @@ class MantleDataFetcher:
     # Backup explorer APIs to try in order
     EXPLORER_APIS = {
         5003: [
-            "https://explorer.sepolia.mantle.xyz/api",
+            "https://sepolia.mantlescan.xyz/api",
             "https://testnet.mantlescan.xyz/api",
         ],
         5000: [

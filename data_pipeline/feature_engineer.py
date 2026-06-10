@@ -79,16 +79,26 @@ class BehavioralFeatureEngineer:
         deltas = df["time_since_prev_tx"].dropna()
 
         if len(deltas) < 3:
-            return {f"temp_{i}": 0.5 for i in range(8)}
+            return {k: 0.5 for k in [
+                "temp_0_log_mean_delta", "temp_1_log_std_delta",
+                "temp_2_skewness", "temp_3_kurtosis", "temp_4_cv",
+                "temp_5_fast_reaction_ratio", "temp_6_autocorr", "temp_7_hour_gini",
+            ]}
 
         # Remove outliers (gaps > 7 days indicate inactivity, not behavior)
         deltas = deltas[deltas < 604800]  # 7 days in seconds
         deltas = deltas[deltas > 0]
 
         if len(deltas) < 3:
-            return {f"temp_{i}": 0.5 for i in range(8)}
+            return {k: 0.5 for k in [
+                "temp_0_log_mean_delta", "temp_1_log_std_delta",
+                "temp_2_skewness", "temp_3_kurtosis", "temp_4_cv",
+                "temp_5_fast_reaction_ratio", "temp_6_autocorr", "temp_7_hour_gini",
+            ]}
 
         log_deltas = np.log1p(deltas)
+        _ac_raw = deltas.autocorr(lag=1) if len(deltas) > 5 else 0.0
+        _autocorr = float(_ac_raw) if not np.isnan(_ac_raw) else 0.0
 
         return {
             # Mean reaction time (log scale) — humans ~7-30 sec, agents ~0.1-2 sec
@@ -118,9 +128,7 @@ class BehavioralFeatureEngineer:
             # Autocorrelation lag-1
             # Agents on a schedule have high autocorrelation
             # Humans are nearly uncorrelated
-            "temp_6_autocorr": float(
-                deltas.autocorr(lag=1) if len(deltas) > 5 else 0.0
-            ),
+            "temp_6_autocorr": _autocorr,
 
             # Hour concentration (Gini coefficient of hourly activity)
             # Agents active 24/7 uniformly — Gini near 0
@@ -144,9 +152,14 @@ class BehavioralFeatureEngineer:
         df: pd.DataFrame
     ) -> Dict[str, float]:
         gas_prices = df["gas_price"].dropna()
+        gas_prices = gas_prices[gas_prices > 0]
 
         if len(gas_prices) < 3:
-            return {f"gas_{i}": 0.5 for i in range(7)}
+            return {k: 0.5 for k in [
+                "gas_0_price_cv", "gas_1_round_fraction", "gas_2_nice_number_fraction",
+                "gas_3_percentile_variance", "gas_4_overpay_ratio",
+                "gas_5_mean_efficiency", "gas_6_efficiency_std",
+            ]}
 
         gas_in_gwei = gas_prices / 1e9
 
@@ -275,7 +288,12 @@ class BehavioralFeatureEngineer:
         values_nonzero = values[values > 0]
 
         if len(values_nonzero) < 3:
-            return {f"port_{i}": 0.5 for i in range(9)}
+            return {k: 0.5 for k in [
+                "port_0_size_cv", "port_1_size_skew", "port_2_size_kurtosis",
+                "port_3_overconfidence_score", "port_4_streak_size_correlation",
+                "port_5_round_value_ratio", "port_6_lognormal_fit",
+                "port_7_activity_consistency", "port_8_max_to_mean_ratio",
+            ]}
 
         # Size variation (humans are more variable in position size)
         size_cv = float(np.std(values_nonzero) / (np.mean(values_nonzero) + 1e-9))
@@ -305,10 +323,11 @@ class BehavioralFeatureEngineer:
         # Human value distributions fit log-normal well
         # Agents often have more discrete/fixed values
         try:
-            _, _, lognorm_ks = stats.kstest(
+            _ks = stats.kstest(
                 np.log(values_nonzero + 1e-10),
                 'norm'
             )
+            lognorm_ks = float(_ks.pvalue)
         except Exception:
             lognorm_ks = 0.5
 
@@ -344,7 +363,10 @@ class BehavioralFeatureEngineer:
         # Agents have more uniform activity.
 
         if len(df) < 10:
-            return {f"event_{i}": 0.5 for i in range(5)}
+            return {k: 0.5 for k in [
+                "event_0_burstiness", "event_1_memory", "event_2_clustering",
+                "event_3_avg_session_txs", "event_4_session_gap_cv",
+            ]}
 
         timestamps = df["timestamp"].sort_values()
         deltas = timestamps.diff().dropna()
@@ -423,7 +445,11 @@ class BehavioralFeatureEngineer:
         df: pd.DataFrame
     ) -> Dict[str, float]:
         if len(df) < 20:
-            return {f"consist_{i}": 0.5 for i in range(6)}
+            return {k: 0.5 for k in [
+                "consist_0_stress_variance_ratio", "consist_1_timing_early_cv",
+                "consist_2_timing_late_cv", "consist_3_cv_evolution",
+                "consist_4_failure_rate", "consist_5_method_evolution",
+            ]}
 
         # Detect high-activity periods (proxy for market stress)
         # (In full implementation, correlate with Mantle network gas price spikes)
@@ -585,6 +611,9 @@ class BehavioralFeatureEngineer:
                 if current_streak > 0:
                     streak_lengths.append(current_streak)
                 current_streak = 0
+
+        if current_streak > 0:
+            streak_lengths.append(current_streak)
 
         if not streak_lengths:
             return {"overconfidence": 0.5, "size_corr": 0.0}
