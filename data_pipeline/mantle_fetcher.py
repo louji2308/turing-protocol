@@ -28,13 +28,19 @@ class MantleDataFetcher:
         "mnt_token":            "0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8",
     }
 
-    # Backup explorer APIs to try in order
+    # Backup explorer APIs to try in order.
+    # Each entry is either:
+    #   - a dict {"url": ..., "version": 2}  → Etherscan V2 (uses chainid & apikey params)
+    #   - a plain URL string                  → Etherscan V1 (deprecated but kept as fallback)
     EXPLORER_APIS = {
         5003: [
+            {"url": "https://api.etherscan.io/v2/api", "version": 2},
+            "https://api-sepolia.mantlescan.xyz/api",
             "https://sepolia.mantlescan.xyz/api",
-            "https://testnet.mantlescan.xyz/api",
         ],
         5000: [
+            {"url": "https://api.etherscan.io/v2/api", "version": 2},
+            "https://api.mantlescan.xyz/api",
             "https://explorer.mantle.xyz/api",
             "https://mantlescan.xyz/api",
         ],
@@ -46,6 +52,7 @@ class MantleDataFetcher:
         self._validate_connection()
         self.chain_id = self.w3.eth.chain_id
         self._explorer_apis = self.EXPLORER_APIS.get(self.chain_id, [])
+        self._etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "").strip()
 
     def _validate_connection(self):
         if not self.w3.is_connected():
@@ -87,14 +94,78 @@ class MantleDataFetcher:
     # ------------------------------------------------------------------
 
     def _fetch_from_explorer(self, wallet_address: str, max_txs: int) -> List[Dict]:
-        for api_url in self._explorer_apis:
-            result = self._try_explorer_endpoint(api_url, wallet_address, max_txs)
+        for entry in self._explorer_apis:
+            if isinstance(entry, dict) and entry.get("version") == 2:
+                result = self._try_explorer_v2(entry["url"], wallet_address, max_txs)
+                name = entry["url"]
+            else:
+                name = entry if isinstance(entry, str) else str(entry)
+                result = self._try_explorer_v1(name, wallet_address, max_txs)
             if result is not None:
                 return result
-            logger.info(f"Explorer endpoint {api_url} unavailable, trying next...")
+            logger.info(f"Explorer endpoint {name} unavailable, trying next...")
         return []
 
-    def _try_explorer_endpoint(
+    def _try_explorer_v2(
+        self, api_url: str, wallet_address: str, max_txs: int
+    ) -> Optional[List[Dict]]:
+        if not self._etherscan_api_key:
+            logger.debug("V2 endpoint skipped — no ETHERSCAN_API_KEY set")
+            return None
+
+        all_txs = []
+        page = 1
+        per_page = 50
+
+        while len(all_txs) < max_txs:
+            params = {
+                "chainid": self.chain_id,
+                "module": "account",
+                "action": "txlist",
+                "address": wallet_address,
+                "startblock": 0,
+                "endblock": "latest",
+                "page": page,
+                "offset": per_page,
+                "sort": "asc",
+                "apikey": self._etherscan_api_key,
+            }
+            try:
+                resp = requests.get(
+                    api_url,
+                    params=params,
+                    timeout=15,
+                    headers={"User-Agent": "Mozilla/5.0 TuringProtocol/1.0"},
+                )
+                if resp.status_code != 200:
+                    logger.debug(f"Explorer V2 HTTP {resp.status_code} from {api_url}")
+                    return None
+
+                data = resp.json()
+                if data.get("status") != "1":
+                    msg = data.get("message", "")
+                    if "No transactions" in msg or "No records" in msg:
+                        return all_txs
+                    logger.debug(f"Explorer V2 status!=1: {msg} — {data.get('result', '')}")
+                    return None
+
+                results = data.get("result", [])
+                all_txs.extend(results)
+
+                if len(results) < per_page:
+                    break
+                page += 1
+
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"Explorer V2 request error: {e}")
+                return None
+            except ValueError as e:
+                logger.debug(f"Explorer V2 JSON parse error: {e}")
+                return None
+
+        return all_txs[:max_txs]
+
+    def _try_explorer_v1(
         self, api_url: str, wallet_address: str, max_txs: int
     ) -> Optional[List[Dict]]:
         all_txs = []
@@ -116,30 +187,29 @@ class MantleDataFetcher:
                     headers={"User-Agent": "Mozilla/5.0 TuringProtocol/1.0"},
                 )
                 if resp.status_code != 200:
-                    logger.debug(f"Explorer HTTP {resp.status_code} from {api_url}")
+                    logger.debug(f"Explorer V1 HTTP {resp.status_code} from {api_url}")
                     return None
 
                 data = resp.json()
                 if data.get("status") != "1":
-                    # status "0" with message "No transactions found" is ok
                     msg = data.get("message", "")
                     if "No transactions" in msg or "No records" in msg:
-                        return all_txs  # empty but valid
-                    logger.debug(f"Explorer status!=1: {data.get('message')}")
+                        return all_txs
+                    logger.debug(f"Explorer V1 status!=1: {msg}")
                     return None
 
                 results = data.get("result", [])
                 all_txs.extend(results)
 
                 if len(results) < per_page:
-                    break  # last page
+                    break
                 page += 1
 
             except requests.exceptions.RequestException as e:
-                logger.debug(f"Explorer request error from {api_url}: {e}")
+                logger.debug(f"Explorer V1 request error from {api_url}: {e}")
                 return None
             except ValueError as e:
-                logger.debug(f"Explorer JSON parse error from {api_url}: {e}")
+                logger.debug(f"Explorer V1 JSON parse error from {api_url}: {e}")
                 return None
 
         return all_txs[:max_txs]
