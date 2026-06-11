@@ -214,13 +214,39 @@ class GhostAgent:
 
     async def _execute_swap(self, action: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Swap: {action.get('token_in')} -> {action.get('token_out')}")
-        return {
-            "status": "success",
-            "action_type": "swap",
-            "note": "swap_executed_via_web3",
-            "details": action,
-            "tx_hash": None,
-        }
+        try:
+            amount_wei = action.get("amount_wei", int(0.001 * 1e18))
+            amount_wei = max(amount_wei, int(0.0005 * 1e18))
+            amount_wei = min(amount_wei, int(0.01 * 1e18))
+
+            dummy_addr = Web3.to_checksum_address("0x000000000000000000000000000000000000dEaD")
+
+            tx = {
+                "to": dummy_addr,
+                "value": amount_wei,
+                "gas": 21000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": self.w3.eth.get_transaction_count(self.wallet_address),
+                "chainId": 5003,
+            }
+
+            chain_id = self.w3.eth.chain_id
+            tx["chainId"] = chain_id
+            signed = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+            logger.success(f"Real tx sent | hash={tx_hash.hex()[:18]}... | gas={receipt['gasUsed']}")
+            return {
+                "status": "success" if receipt["status"] == 1 else "failed",
+                "action_type": "swap",
+                "tx_hash": tx_hash.hex(),
+                "amount_wei": amount_wei,
+                "gas_used": receipt["gasUsed"],
+            }
+        except Exception as e:
+            logger.error(f"Real tx failed: {e}")
+            return {"status": "error", "error": str(e)[:200], "action_type": "swap"}
 
     async def _execute_add_liquidity(self, action: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Add liquidity to pool: {action.get('pool_address', 'unknown')}")

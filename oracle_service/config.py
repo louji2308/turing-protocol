@@ -25,7 +25,7 @@ class OracleConfig:
     ghost_wallet: str = field(default_factory=lambda: os.getenv("GHOST_WALLET_ADDRESS", ""))
     update_interval: int = field(default_factory=lambda: int(os.getenv("ORACLE_UPDATE_INTERVAL_SECONDS", "900")))
     pob_threshold: int = field(default_factory=lambda: int(os.getenv("POB_SCORE_THRESHOLD", "7000")))
-    pob_sustained_hours: int = field(default_factory=lambda: int(os.getenv("POB_SUSTAINED_HOURS", "72")))
+    pob_sustained_hours: float = field(default_factory=lambda: float(os.getenv("POB_SUSTAINED_HOURS", "72")))
     min_tx_history: int = field(default_factory=lambda: int(os.getenv("MIN_TX_HISTORY", "50")))
     model_version: int = 100
     score_cache_ttl: int = 900

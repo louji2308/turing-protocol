@@ -32,7 +32,7 @@ export function useOracleEvents(ghostAddress) {
   const fetchOracleStats = useCallback(async () => {
     const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
     try {
-      const resp = await fetch(`${apiBase}/stats`, { signal: AbortSignal.timeout(5000) });
+      const resp = await fetch(`${apiBase}/stats`,         { signal: AbortSignal.timeout(30000) });
       if (resp.ok) {
         const data = await resp.json();
         setOracleStats(data);
@@ -47,7 +47,7 @@ export function useOracleEvents(ghostAddress) {
   const fetchLeaderboard = useCallback(async () => {
     const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
     try {
-      const resp = await fetch(`${apiBase}/leaderboard?limit=20`, { signal: AbortSignal.timeout(5000) });
+      const resp = await fetch(`${apiBase}/leaderboard?limit=20`, { signal: AbortSignal.timeout(30000) });
       if (resp.ok) {
         const data = await resp.json();
         setRecentProofs(data.leaderboard || []);

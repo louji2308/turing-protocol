@@ -19,7 +19,7 @@ export default function InterrogatorPanel({
 
   useEffect(() => {
     if (!lastUpdateTime) return;
-    const UPDATE_INTERVAL = 900;
+    const UPDATE_INTERVAL = 60;
 
     const tick = () => {
       const secondsSinceUpdate = Math.floor((Date.now() - lastUpdateTime.getTime()) / 1000);

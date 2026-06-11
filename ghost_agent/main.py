@@ -78,6 +78,19 @@ async def _run_telemetry_server(ghost):
         return web.json_response({"telemetry": items[-20:]})
 
     app = web.Application()
+
+    # CORS middleware — browser dashboard on :5173 needs this
+    @web.middleware
+    async def cors_middleware(request, handler):
+        resp = await handler(request)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+        if request.method == "OPTIONS":
+            return web.Response(status=204, headers=resp.headers)
+        return resp
+
+    app.middlewares.append(cors_middleware)
     app.router.add_get("/status", handle_status)
     app.router.add_get("/telemetry", handle_telemetry)
 
