@@ -47,24 +47,12 @@ export default defineConfig({
       chainType: "l1",
       url: MANTLE_TESTNET_RPC,
       accounts: [OPERATOR_PRIVATE_KEY],
-      blockExplorers: {
-        etherscan: {
-          url: "https://explorer.testnet.mantle.xyz",
-          apiUrl: "https://explorer.testnet.mantle.xyz/api",
-        },
-      },
     },
     mantle_mainnet: {
       type: "http",
       chainType: "l1",
       url: MANTLE_MAINNET_RPC,
       accounts: [OPERATOR_PRIVATE_KEY],
-      blockExplorers: {
-        etherscan: {
-          url: "https://explorer.mantle.xyz",
-          apiUrl: "https://explorer.mantle.xyz/api",
-        },
-      },
     },
   },
 });

@@ -145,7 +145,7 @@ export default function ProofLeaderboard({
                     )}
                     {proof.wallet && (
                       <a
-                        href={`https://explorer.testnet.mantle.xyz/address/${proof.wallet}`}
+                        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${proof.wallet}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: 'var(--text-muted)', display: 'flex' }}
@@ -207,7 +207,7 @@ export default function ProofLeaderboard({
           SOULBOUND \u00B7 NON-TRANSFERABLE
         </span>
         <a
-          href={`https://explorer.testnet.mantle.xyz/address/${import.meta.env.VITE_POB_ADDRESS || ''}`}
+          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${import.meta.env.VITE_POB_ADDRESS || ''}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--accent-purple)', textDecoration: 'none' }}

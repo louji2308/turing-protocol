@@ -127,7 +127,7 @@ export default function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
           <a
-            href={`https://explorer.testnet.mantle.xyz/address/${import.meta.env.VITE_ORACLE_ADDRESS || ''}`}
+            href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${import.meta.env.VITE_ORACLE_ADDRESS || ''}`}
             target="_blank"
             rel="noopener noreferrer"
             style={{

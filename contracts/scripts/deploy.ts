@@ -7,8 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function main() {
+  const activeNetwork = process.env.ACTIVE_NETWORK || "testnet";
+  const hardhatNetwork = activeNetwork === "mainnet" ? "mantle_mainnet" : "mantle_testnet";
   const { ethers } = await network.create({
-    network: "mantle_testnet",
+    network: hardhatNetwork,
   });
 
   const [deployer] = await ethers.getSigners();

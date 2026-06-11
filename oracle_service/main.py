@@ -59,6 +59,7 @@ class ScoreResponse(BaseModel):
     hps: int
     error: Optional[str] = None
     details: Optional[dict] = None
+    explanation: Optional[list] = None
 
 
 class LeaderboardEntry(BaseModel):
@@ -95,7 +96,8 @@ async def lifespan(app: FastAPI):
     try:
         from mantle_fetcher import MantleDataFetcher
         if scorer is not None:
-            scorer.set_fetcher(MantleDataFetcher())
+            fetcher = MantleDataFetcher(config.rpc_url)
+            scorer.set_fetcher(fetcher)
             logger.success("MantleDataFetcher attached to scorer")
     except Exception as e:
         logger.warning(f"Could not attach MantleDataFetcher: {e}")
@@ -186,6 +188,26 @@ async def health():
     )
 
 
+@app.get("/stats")
+async def stats():
+    total_scored = 0
+    total_fresh = 0
+    total_minted_val = 0
+    try:
+        total_scored = oracle_contract.functions.totalScoredWallets().call() if oracle_contract else 0
+        total_fresh = pob_contract.functions.totalFreshProofs().call() if pob_contract else 0
+        total_minted_val = pob_contract.functions.totalMinted().call() if pob_contract else 0
+    except Exception:
+        pass
+    return {
+        "total_scored_wallets": total_scored,
+        "total_fresh_proofs": total_fresh,
+        "total_minted": total_minted_val,
+        "model_version": config.model_version,
+        "operator": w3.eth.default_account or "",
+    }
+
+
 @app.get("/score/{wallet}", response_model=ScoreResponse)
 async def score_wallet(wallet: str):
     if not Web3.is_address(wallet):
@@ -195,13 +217,14 @@ async def score_wallet(wallet: str):
 
     try:
         result = await asyncio.to_thread(
-            lambda: scorer.score(wallet, True)
+            lambda: scorer.score(wallet, use_cache=True, return_explanation=True)
         )
         return ScoreResponse(
             wallet=Web3.to_checksum_address(wallet),
             hps=int(result.get("hps", 0)),
             error=result.get("error"),
             details=result.get("raw"),
+            explanation=result.get("explanation"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

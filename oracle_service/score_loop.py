@@ -119,8 +119,8 @@ class ScoreSubmissionLoop:
             )
             events = await asyncio.to_thread(
                 lambda: self.oracle_contract.events.ScoreUpdated.get_logs(
-                    from_block=max(0, current_block - 5000),
-                    to_block="latest"
+                    fromBlock=max(0, current_block - 5000),
+                    toBlock="latest"
                 )
             )
             for event in events:
@@ -211,7 +211,7 @@ class ScoreSubmissionLoop:
             signed = self.w3.eth.account.sign_transaction(
                 tx, private_key=self.config.operator_private_key
             )
-            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
             tx_hash_hex = tx_hash.hex()
 
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)

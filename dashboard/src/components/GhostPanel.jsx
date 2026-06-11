@@ -129,7 +129,7 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
           </div>
         </div>
         <a
-          href={`https://explorer.testnet.mantle.xyz/address/${ghostAddress}`}
+          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${ghostAddress}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{

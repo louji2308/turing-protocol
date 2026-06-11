@@ -96,8 +96,8 @@ class POBEligibilityChecker:
 
             score_events = await asyncio.to_thread(
                 lambda: self.oracle_contract.events.ScoreUpdated.get_logs(
-                    from_block=max(0, current_block - 20000),
-                    to_block="latest"
+                    fromBlock=max(0, current_block - 20000),
+                    toBlock="latest"
                 )
             )
             for event in score_events:
@@ -125,8 +125,8 @@ class POBEligibilityChecker:
         try:
             return await asyncio.to_thread(
                 lambda: self.pob_contract.events.ProofMinted.get_logs(
-                    from_block=0,
-                    to_block="latest"
+                    fromBlock=0,
+                    toBlock="latest"
                 )
             )
         except Exception as e:
@@ -221,7 +221,7 @@ class POBEligibilityChecker:
                 signed = self.w3.eth.account.sign_transaction(
                     tx, private_key=self.config.operator_private_key
                 )
-                tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
                 receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
                 if receipt["status"] == 1:
@@ -265,7 +265,7 @@ class POBEligibilityChecker:
                 signed = self.w3.eth.account.sign_transaction(
                     tx, private_key=self.config.operator_private_key
                 )
-                tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
                 self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                 return tx_hash.hex()
 
