@@ -8,6 +8,7 @@ from interrogator.model import InterrogatorModel
 from data_pipeline.feature_engineer import BehavioralFeatureEngineer
 from data_pipeline.preprocessing import FeaturePreprocessor
 from data_pipeline.mantle_fetcher import MantleDataFetcher
+from scorers.dimension_scorer import DimensionScorer, hybrid_hps
 
 
 class WalletScorer:
@@ -32,6 +33,8 @@ class WalletScorer:
         self.preprocessor = FeaturePreprocessor(models_dir)
         self.model = InterrogatorModel(models_dir)
         self.model.load()
+
+        self.dim_scorer = DimensionScorer()
 
         # Feature cache: {wallet_address: (features_dict, timestamp)}
         # Expire cache entries after 15 minutes
@@ -93,22 +96,15 @@ class WalletScorer:
         X = self.preprocessor.transform(features_dict)
 
         # Score
-        hps = self.model.score_wallet(X)
+        ml_hps = self.model.score_wallet(X)
 
-        # Failure rate penalty (post-processing heuristic)
-        failure_rate = features_dict.get("consist_4_failure_rate", 0.0)
-        if failure_rate < 0.01:
-            penalty = 0.92 + (failure_rate / 0.01) * 0.10
-        elif failure_rate < 0.04:
-            penalty = 1.02 + ((failure_rate - 0.01) / 0.03) * 0.03
-        elif failure_rate < 0.07:
-            penalty = 1.05 + ((failure_rate - 0.04) / 0.03) * (-0.05)
-        else:
-            excess = failure_rate - 0.07
-            penalty = max(1.0 * np.exp(-5.33 * excess), 0.3)
-
-        hps = int(hps * penalty)
-        hps = max(0, min(10000, hps))
+        # Hybrid: combine ML prediction with dimension-based scoring
+        final_hps, ml_weight, dim_weight, dim_scores = hybrid_hps(
+            ml_hps=ml_hps,
+            features=features_dict,
+            dim_scorer=self.dim_scorer,
+        )
+        hps = final_hps
         probability = hps / 10000.0
 
         # Determine confidence
@@ -122,10 +118,12 @@ class WalletScorer:
         result = {
             "address": wallet_address,
             "hps": hps,
+            "ml_hps": ml_hps,
             "probability": probability,
             "confidence": confidence,
-            "failure_rate": round(failure_rate, 4),
-            "failure_penalty": round(penalty, 4),
+            "ml_weight": ml_weight,
+            "dim_weight": dim_weight,
+            "dimension_scores": dim_scores,
             "computed_at": int(time.time()),
             "computation_ms": int((time.time() - start) * 1000),
         }
