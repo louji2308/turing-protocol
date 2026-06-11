@@ -94,6 +94,21 @@ class WalletScorer:
 
         # Score
         hps = self.model.score_wallet(X)
+
+        # Failure rate penalty (post-processing heuristic)
+        failure_rate = features_dict.get("consist_4_failure_rate", 0.0)
+        if failure_rate < 0.01:
+            penalty = 0.92 + (failure_rate / 0.01) * 0.10
+        elif failure_rate < 0.04:
+            penalty = 1.02 + ((failure_rate - 0.01) / 0.03) * 0.03
+        elif failure_rate < 0.07:
+            penalty = 1.05 + ((failure_rate - 0.04) / 0.03) * (-0.05)
+        else:
+            excess = failure_rate - 0.07
+            penalty = max(1.0 * np.exp(-5.33 * excess), 0.3)
+
+        hps = int(hps * penalty)
+        hps = max(0, min(10000, hps))
         probability = hps / 10000.0
 
         # Determine confidence
@@ -109,6 +124,8 @@ class WalletScorer:
             "hps": hps,
             "probability": probability,
             "confidence": confidence,
+            "failure_rate": round(failure_rate, 4),
+            "failure_penalty": round(penalty, 4),
             "computed_at": int(time.time()),
             "computation_ms": int((time.time() - start) * 1000),
         }
