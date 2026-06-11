@@ -304,7 +304,7 @@ Coordinated bot farms exhibit distinctive network patterns: wallets funded from 
 
 ## The Ghost Agent
 
-The Ghost Agent is the adversarial component of Turing Protocol — an autonomous Python agent that executes real transactions on Mantle Sepolia while deliberately mimicking the behavioural signatures of a human trader. It serves two purposes simultaneously:
+The Ghost Agent is the adversarial component of Turing Protocol — an autonomous Python agent that executes real transactions on Mantle Sepolia (via native MNT transfers or DEX swaps) while deliberately mimicking the behavioural signatures of a human trader. It serves two purposes simultaneously:
 
 1. **As a red team**: It continuously attempts to fool the Interrogator, exposing weaknesses in the classifier before real adversaries can exploit them.
 2. **As a training data generator**: Every transaction it makes is labelled ground-truth agent data, providing a continuous stream of adversarial examples for model retraining.
@@ -508,7 +508,7 @@ The ProofOfBehavior NFT is the final output of the entire system — a verifiabl
 
 **Minting requirements:**
 - HPS ≥ 7,000 (top 30% of the human probability distribution)
-- Maintained for ≥ 72 consecutive hours
+- Maintained for ≥ 72 consecutive hours (configurable via `POB_SUSTAINED_HOURS` — set to 0.05 for test mints)
 - Transaction history of ≥ 50 interactions
 - Must not already hold a proof
 
@@ -523,11 +523,13 @@ The ProofOfBehavior NFT is the final output of the entire system — a verifiabl
 
 ## Oracle Service
 
+**Deployed at:** [https://turing-oracle.onrender.com](https://turing-oracle.onrender.com)
+
 The Oracle Service is a FastAPI application that bridges the off-chain ML model and the on-chain contracts. It runs autonomously, continuously scoring wallets and submitting updates to the chain.
 
 **Core background tasks:**
 
-**ScoreSubmissionLoop**: Every 15 minutes, fetches the list of active wallets from chain events, scores each one using the Interrogator, and submits batch updates to `HPSOracle.batchUpdateScores()`. Processes up to 100 wallets per transaction with a configurable concurrency semaphore.
+**ScoreSubmissionLoop**: Every 60 seconds, fetches the list of active wallets from chain events, scores each one using the Interrogator, and submits batch updates to `HPSOracle.batchUpdateScores()`. Processes up to 100 wallets per transaction with a configurable concurrency semaphore.
 
 **POBEligibilityChecker**: Every hour, evaluates all scored wallets against the ProofOfBehavior minting criteria. Triggers minting transactions for qualifying wallets and freshness updates for existing proof holders.
 
@@ -548,6 +550,8 @@ POST /admin/score-loop/trigger — Force immediate oracle update cycle
 ---
 
 ## Live Dashboard
+
+**Deployed at:** [https://dashboard-ten-gamma-22.vercel.app](https://dashboard-ten-gamma-22.vercel.app)
 
 The React dashboard provides real-time visibility into the entire system, polling the oracle service and listening directly to on-chain events via `ethers.js`.
 
@@ -575,9 +579,7 @@ The dashboard persists score history in localStorage (24-hour rolling window) so
 | Feature Count | 47 |
 | Feature Classes | 7 |
 | Inference Time | <30s (first score), <1s (cached) |
-| On-chain Update Interval | 15 minutes |
-| Ghost Agent Adversarial Target | HPS 7,200 |
-| Minting Threshold | HPS ≥ 7,000 for ≥ 72 hours |
+| On-chain Update Interval | 60 seconds |
 
 The AUC of 0.8968 is achieved on a held-out test set (15% of dataset), evaluated after training on 70% with 15% used for early stopping. The test set includes wallets from all points on the synthetic `human_strength` spectrum, including the deliberately ambiguous middle range.
 
@@ -636,7 +638,8 @@ All contracts are deployed and verified on **Mantle Sepolia Testnet** (Chain ID:
 - Tailwind CSS
 
 **Infrastructure:**
-- Vercel (dashboard deployment)
+- Vercel (dashboard deployment) — [https://dashboard-ten-gamma-22.vercel.app](https://dashboard-ten-gamma-22.vercel.app)
+- Render (oracle backend) — [https://turing-oracle.onrender.com](https://turing-oracle.onrender.com)
 - dotenv for configuration management
 
 ---
@@ -837,6 +840,8 @@ python scripts/test_wallet.py
 uvicorn oracle_service.main:app --host 0.0.0.0 --port 8080
 ```
 
+The oracle service is also deployed at [https://turing-oracle.onrender.com](https://turing-oracle.onrender.com) (Free tier — may take ~30s to cold start after inactivity).
+
 The oracle service will start its background loops automatically. Watch the logs for:
 ```
 ✅ Connected to chain 5003 via https://rpc.sepolia.mantle.xyz
@@ -858,6 +863,8 @@ python -m ghost_agent.main
 python -m ghost_agent.main --dry-run
 ```
 
+The agent executes **real on-chain transactions** (small MNT transfers to generate behavioural data). When dry-run is off, each trade sends 0.0005–0.01 MNT via signed transactions.
+
 The Ghost Agent exposes a telemetry HTTP server on `localhost:9100`:
 ```bash
 curl http://localhost:9100/status
@@ -871,6 +878,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173` to see the live system.
+
+The dashboard is also deployed at [https://dashboard-ten-gamma-22.vercel.app](https://dashboard-ten-gamma-22.vercel.app).
 
 ### Running Tests
 

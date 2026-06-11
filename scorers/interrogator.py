@@ -9,13 +9,14 @@ class Interrogator:
     Bridge adapter: wraps WalletScorer into the API the oracle_service expects.
     """
 
-    def __init__(self):
+    def __init__(self, ghost_wallet: str = None):
         rpc_url = os.getenv("MANTLE_TESTNET_RPC", "https://rpc.sepolia.mantle.xyz")
         models_dir = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "interrogator", "models"
         )
         self._scorer = WalletScorer(rpc_url=rpc_url, models_dir=models_dir)
         self._fetcher = None
+        self._ghost_wallet = ghost_wallet or os.getenv("GHOST_WALLET_ADDRESS")
         logger.success(f"Interrogator initialized with models from {models_dir}")
 
     def set_fetcher(self, fetcher):
@@ -35,11 +36,14 @@ class Interrogator:
 
     def load_latest_ghost_data(self):
         from interrogator.trainer import load_latest_ghost_data
-        return load_latest_ghost_data()
+        return load_latest_ghost_data(ghost_wallet=self._ghost_wallet)
 
     def adversarial_retrain(self, new_version):
         from interrogator.trainer import adversarial_retrain
         return adversarial_retrain(self, new_version)
+
+    def reload_model(self):
+        self._scorer.reload_model()
 
     def save_model(self, model_path):
         from interrogator.trainer import save_model

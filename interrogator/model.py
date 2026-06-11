@@ -302,3 +302,7 @@ class InterrogatorModel:
         self.MODEL_VERSION = meta["version"]
 
         logger.success(f"Model loaded: version {self.MODEL_VERSION}")
+
+    def reload(self):
+        self.load()
+        logger.success("Model reloaded from disk")

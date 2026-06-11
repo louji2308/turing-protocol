@@ -166,6 +166,12 @@ class WalletScorer:
     ):
         self._feature_cache[wallet_address] = (features, time.time())
 
+    def reload_model(self):
+        self.model.reload()
+        self.preprocessor = FeaturePreprocessor(self.model.models_dir)
+        self._feature_cache.clear()
+        logger.success("Scorer reloaded with retrained model")
+
     def _insufficient_history_result(self, address: str) -> Dict:
         return {
             "address": address,

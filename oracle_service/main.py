@@ -87,9 +87,9 @@ async def lifespan(app: FastAPI):
 
     try:
         from scorers.interrogator import Interrogator
-        interrogator = Interrogator()
+        interrogator = Interrogator(ghost_wallet=config.ghost_wallet)
         scorer = interrogator
-        logger.success("Interrogator loaded for scoring")
+        logger.success(f"Interrogator loaded for scoring | ghost={config.ghost_wallet[:14]}...")
     except Exception as e:
         logger.error(f"Failed to load Interrogator: {e}")
 

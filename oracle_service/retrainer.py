@@ -33,7 +33,7 @@ class AdversarialRetrainer:
         self.oracle_contract = oracle_contract
         self.config = config
 
-        self.check_interval = 7200
+        self.check_interval = 300
         self.ghost_wallet = config.ghost_wallet
         self.retraining_threshold = 7800
 
@@ -107,16 +107,16 @@ class AdversarialRetrainer:
         if current_score < self.retraining_threshold:
             return False
 
-        if len(self._recent_ghost_scores) < 3:
+        if len(self._recent_ghost_scores) < 2:
             return False
 
-        recent = self._recent_ghost_scores[-5:]
+        recent = self._recent_ghost_scores[-3:]
         sustained_above = sum(1 for s in recent if s["score"] >= self.retraining_threshold)
-        if sustained_above < 3:
+        if sustained_above < 2:
             return False
 
         time_since_last = time.time() - self._last_retrain_time
-        if time_since_last < 21600:
+        if time_since_last < 600:
             return False
 
         return True
@@ -150,6 +150,9 @@ class AdversarialRetrainer:
             )
             logger.success(f"Model saved: {model_path}")
 
+            self.interrogator.reload_model()
+            logger.success("Scorer reloaded with retrained model")
+
             self._current_model_version = new_version
             self._last_retrain_time = time.time()
             self._retrain_count += 1
@@ -166,7 +169,8 @@ class AdversarialRetrainer:
             logger.success(
                 f"Retraining v{new_version} complete | "
                 f"ghost_score={current_score} | "
-                f"{duration:.1f}s"
+                f"duration={duration:.1f}s | "
+                f"model_reloaded=true"
             )
 
         except Exception as e:
