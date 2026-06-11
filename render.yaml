@@ -31,10 +31,10 @@ services:
       - key: ETHERSCAN_API_KEY
         sync: false
       - key: ORACLE_UPDATE_INTERVAL_SECONDS
-        value: "900"
+        value: "60"
       - key: POB_SCORE_THRESHOLD
         value: "7000"
       - key: POB_SUSTAINED_HOURS
-        value: "72"
+        value: "0.05"
       - key: MIN_TX_HISTORY
         value: "50"
