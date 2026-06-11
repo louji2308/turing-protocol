@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: turing-oracle
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn oracle_service.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ACTIVE_NETWORK
+        value: testnet
+      - key: MANTLE_TESTNET_RPC
+        sync: false
+      - key: MANTLE_MAINNET_RPC
+        sync: false
+      - key: OPERATOR_PRIVATE_KEY
+        sync: false
+      - key: GHOST_PRIVATE_KEY
+        sync: false
+      - key: GHOST_WALLET_ADDRESS
+        sync: false
+      - key: HPS_ORACLE_ADDRESS
+        sync: false
+      - key: PROOF_OF_BEHAVIOR_ADDRESS
+        sync: false
+      - key: TURING_LIB_ADDRESS
+        sync: false
+      - key: ETHERSCAN_API_KEY
+        sync: false
+      - key: ORACLE_UPDATE_INTERVAL_SECONDS
+        value: "900"
+      - key: POB_SCORE_THRESHOLD
+        value: "7000"
+      - key: POB_SUSTAINED_HOURS
+        value: "72"
+      - key: MIN_TX_HISTORY
+        value: "50"
