@@ -22,8 +22,8 @@ load_dotenv()
 
 class GhostAgent:
 
-    OPTIMIZATION_TRIGGER_HPS = 5500
-    TARGET_HPS = 7200
+    OPTIMIZATION_TRIGGER_HPS = 4500
+    TARGET_HPS = 5500
 
     def __init__(self):
         self.rpc_url = (

@@ -36,8 +36,8 @@ class ParameterOptimizer:
         "strategy_hold_weight": (0.20, 0.60, 0.40, 0.05),
     }
 
-    EVALUATION_TX_TARGET = 15
-    MIN_IMPROVEMENT = 50
+    EVALUATION_TX_TARGET = 25
+    MIN_IMPROVEMENT = 100
 
     def __init__(self, behavior_layer, oracle_contract, wallet_address: str):
         self.behavior = behavior_layer

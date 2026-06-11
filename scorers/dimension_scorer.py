@@ -12,7 +12,7 @@ def _sigmoid(x: float, center: float, width: float) -> float:
 
 def _linear_clip(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max: float = 100.0) -> float:
     """Linear interpolation from (x_min → y_min) to (x_max → y_max), clipped."""
-    if x <= x_min:
+    if x != x or x <= x_min:
         return y_min
     if x >= x_max:
         return y_max
@@ -22,7 +22,7 @@ def _linear_clip(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max
 
 def _inverse_linear(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max: float = 100.0) -> float:
     """Like linear_clip but decreasing: (x_min → y_max) to (x_max → y_min)."""
-    if x <= x_min:
+    if x != x or x <= x_min:
         return y_max
     if x >= x_max:
         return y_min
@@ -305,18 +305,38 @@ class DimensionScorer:
             "transaction_graph":      round(self._transaction_graph(features), 1),
         }
 
-    def overall_score(self, features: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
+    @staticmethod
+    def _wallet_age_boost(features: Dict[str, float], block_time: float = 12.0) -> float:
+        """
+        Returns a multiplier >1.0 for wallets older than 2 years.
+        Boost grows with age: +5% per year after 2 years, capped at +30%.
+        block_time: seconds per block (12 for Ethereum, 2 for Mantle Sepolia).
+        """
+        age_log = features.get("net_3_wallet_age_blocks_log", 0.0)
+        if age_log <= 0:
+            return 1.0
+        age_blocks = np.expm1(age_log)
+        age_days = age_blocks * block_time / 86400.0
+        if age_days <= 730:
+            return 1.0
+        boost = 1.0 + (age_days - 730) / 365.0 * 0.05
+        return min(boost, 1.30)
+
+    def overall_score(self, features: Dict[str, float], block_time: float = 12.0) -> Tuple[float, Dict[str, float]]:
         dims = self.score_all(features)
         total_weight = sum(self.WEIGHTS.get(k, 1.0) for k in dims)
         weighted_sum = sum(dims[k] * self.WEIGHTS.get(k, 1.0) for k in dims)
         avg = weighted_sum / total_weight
-        return round(avg, 1), dims
+        boost = self._wallet_age_boost(features, block_time)
+        boosted = avg * boost
+        return round(boosted, 1), dims
 
 
 def hybrid_hps(
     ml_hps: int,
     features: Dict[str, float],
     dim_scorer: DimensionScorer = None,
+    block_time: float = 12.0,
 ) -> Tuple[int, float, float, Dict[str, float]]:
     """
     Adaptive hybrid combining ML prediction with dimension-based scoring.
@@ -327,7 +347,7 @@ def hybrid_hps(
     if dim_scorer is None:
         dim_scorer = DimensionScorer()
 
-    dim_avg, dim_scores = dim_scorer.overall_score(features)
+    dim_avg, dim_scores = dim_scorer.overall_score(features, block_time)
     dim_hps = int(dim_avg * 100.0)
 
     diff = abs(ml_hps - dim_hps)

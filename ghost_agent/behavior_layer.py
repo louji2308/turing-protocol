@@ -26,8 +26,8 @@ class BehaviorLayer:
         self.portfolio_bias = portfolio_bias_module
         self.news = news_module
 
-        self._hps_low_threshold = 6000
-        self._hps_high_threshold = 8000
+        self._hps_low_threshold = 4500
+        self._hps_high_threshold = 6000
         self._modifications_history = []
 
     def modify(self, action: Dict[str, Any], current_hps: int) -> Dict[str, Any]:

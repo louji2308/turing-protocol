@@ -99,10 +99,12 @@ class WalletScorer:
         ml_hps = self.model.score_wallet(X)
 
         # Hybrid: combine ML prediction with dimension-based scoring
+        # Mantle Sepolia block time = 2s
         final_hps, ml_weight, dim_weight, dim_scores = hybrid_hps(
             ml_hps=ml_hps,
             features=features_dict,
             dim_scorer=self.dim_scorer,
+            block_time=2.0,
         )
         hps = final_hps
         probability = hps / 10000.0

@@ -107,12 +107,26 @@ The system works as follows:
 │  │           │  │   │                                                       │  │
 │  │getScore() │  │   │  ┌────────────────────────────────────────────────┐   │  │
 │  │batchUpd.. │──┼──▶│  │                  WalletScorer                  │   │  │
-│  └───────────┘  │   │  │                                                │   │  │
-│                 │   │  │  MantleDataFetcher → FeatureEngineer           │   │  │
-│  ┌───────────┐  │   │  │  (47 features)       (7 feature classes)       │   │  │
-│  │ProofOf    │◀─┼── │  │                                                │   │  │
-│  │Behavior   │  │   │  │  FeaturePreprocessor → InterrogatorModel       │   │  │
-│  │(Soulbound │  │   │  │  (RobustScaler)       (XGBoost + SHAP)         │   │  │
+│  ┌───────────┐  │   │  │                                                │   │  │
+│  │ProofOf    │◀─┼── │   │  │  MantleDataFetcher → FeatureEngineer           │   │  │
+│  │Behavior   │  │   │  │  (47 features)       (7 feature classes)       │   │  │
+│  │(Soulbound │  │   │  │                                                │   │  │
+│  │ ERC-721)  │  │   │  │  ┌──────── ML Path ────────┐                 │   │  │
+│  │  └───────────┘  │   │  │  │ FeaturePreprocessor  │                 │   │  │
+│  └───────────┘  │   │  │  │ (RobustScaler)     │                 │   │  │
+│                 │   │  │  │ InterrogatorModel  │                 │   │  │
+│                 │   │  │  │ (XGBoost + SHAP)   │                 │   │  │
+│                 │   │  │  └───────── ML_HPS ────────┘                 │   │  │
+│                 │   │  │                                                │   │  │
+│                 │   │  │  ┌────── Dimension Path ──────┐                │   │  │
+│                 │   │  │  │ DimensionScorer       │                │   │  │
+│                 │   │  │  │ (12 dimensions, 0-100) │                │   │  │
+│                 │   │  │  │ Wallet Age Boost      │                │   │  │
+│                 │   │  │  │ (×1.30 max)          │                │   │  │
+│                 │   │  │  └─────── Dim_HPS ───────┘                │   │  │
+│                 │   │  │                                                │   │  │
+│                 │   │  │  Adaptive Hybrid Combiner                      │   │  │
+│                 │   │  │  (50/50 if agree, 20/80 if disagree)          │   │  │
 │  │ ERC-721)  │  │   │  └────────────────────────────────────────────────┘   │  │
 │  └───────────┘  │   │                                                       │  │
 │                 │   │  AdversarialRetrainer                                 │  │
@@ -197,6 +211,122 @@ Obtaining ground-truth labels on a blockchain is genuinely hard. The Interrogato
 - A continuous spectrum from `human_strength=0.0` (pure agent) to `human_strength=1.0` (pure human)
 - Wallets near 0.5 are deliberately ambiguous, preventing the model from achieving perfect training accuracy and forcing generalisation
 - Distribution is U-shaped (bimodal at extremes) with ~20% in the ambiguous middle
+
+---
+
+## The Dimension Scorer — 12 Behavioural Dimensions
+
+The XGBoost model is paired with a **12-dimension deterministic scorer** that evaluates wallet behaviour across interpretable axes (0-100 each). While the ML model produces a black-box probability, the dimension scorer provides transparent, auditable scores for each behavioural dimension — and the two paths are combined adaptively.
+
+### Why Two Scorers?
+
+| | ML Model (XGBoost) | Dimension Scorer |
+|---|---|---|
+| **Strength** | Captures non-linear interactions across 47 features | Interpretable, auditable, zero-shot |
+| **Weakness** | Requires retraining; may overfit to training distribution | Hand-crafted thresholds; misses cross-dimension patterns |
+| **Output** | HPS (0-10000) + SHAP values | 12 per-dimension scores (0-100) + composite average |
+| **Reliability** | High when distribution matches training | High when features fall within expected ranges |
+
+The **adaptive hybrid combiner** merges both outputs based on their agreement:
+
+- `|ML_HPS - Dim_HPS| < 1000` → they agree → **50/50 average**
+- `|ML_HPS - Dim_HPS| > 3000` → they disagree → **20/80** (trust dimensions over ML)
+- Between → **linear blend** from 50/50 to 20/80
+
+This ensures the system degrades gracefully when the ML model encounters out-of-distribution wallets.
+
+### The 12 Dimensions
+
+#### 1. Sleep Pattern (0-100)
+Measures whether activity clusters in timezone-consistent hours. Uses hourly Gini coefficient and interval CV.
+- **Human** (70-100): Activity concentrated in waking hours, irregular gaps
+- **Spam bot** (0-30): 24/7 uniform distribution, no gaps
+- **Careful bot** (20-50): Fake programmed gaps in fixed patterns
+
+#### 2. Transaction Timing (0-100)
+Evaluates the irregularity of inter-transaction intervals using CV, autocorrelation, fast-reaction ratio, and burstiness.
+- **Human** (70-100): CV > 1.0, positive burstiness, low autocorrelation
+- **Spam bot** (0-30): Near-zero CV, negative burstiness (regular intervals)
+- **Careful bot** (20-50): Randomized but uniformly so
+
+#### 3. Gas Price Psychology (0-100)
+Gas price selection is a micro-economic decision that reveals cognitive biases. Features: gas price CV, round number fraction, nice number fraction, overpay ratio.
+- **Human** (70-100): High variability, round/nice numbers, occasional overpay
+- **Spam bot** (0-30): Lowest possible, precise, no rounding
+- **Careful bot** (20-50): Network average, calibrated, no psychological noise
+
+#### 4. Amount Entropy (0-100)
+Position sizing reveals loss aversion, overconfidence, and the house-money effect. Features: size CV, skewness, round value ratio, max-to-mean ratio.
+- **Human** (70-100): High variance, round amounts, occasional outliers
+- **Spam bot** (0-30): Fixed or near-fixed amounts
+- **Careful bot** (20-50): Artificially randomized, no psychological skew
+
+#### 5. Revert Rate (0-100)
+Only humans fail transactions at non-trivial rates. Features: historical failure rate with non-linear mapping.
+- **Human** (70-100): 2-5% failure rate (real errors, gas underestimation)
+- **Spam bot** (0-20): 0% failure (simulated off-chain) or >10% (probe-and-revert)
+- **Careful bot** (0-20): Near-zero failure rate
+
+#### 6. Wallet Age (0-100)
+Established wallets with deep history indicate real human engagement. Uses log block span from first to latest transaction.
+- **Human** (70-100): Months to years of activity
+- **Spam bot** (0-30): Freshly created, shallow history
+- **Careful bot** (20-50): Aged deliberately in advance
+
+#### 7. Funding Source (0-100)
+Who funds this wallet? Diverse organic funding indicates human adoption; single-donor fan-out indicates bot farms.
+- **Human** (70-100): Various organic sources, low concentration
+- **Spam bot** (0-30): Single donor wallet, high top-1 concentration
+- **Careful bot** (20-50): CEX withdrawal + intermediary layers
+
+#### 8. Contract Diversity (0-100)
+Human curiosity drives exploration of multiple protocols. Features: unique protocol count, HHI, exploration ratio, weekend ratio.
+- **Human** (70-100): 3+ protocols, exploration of unknown contracts
+- **Spam bot** (0-30): 1-2 task-specific contracts
+- **Careful bot** (20-50): Padded with noise interactions
+
+#### 9. News Reaction (0-100)
+Human trading is bursty and news-driven. Uses formal burstiness framework (Goh & Barabasi 2008), session clustering, and session gap CV.
+- **Human** (70-100): Positive burstiness, irregular session gaps
+- **Spam bot** (0-30): No burstiness, uniform activity
+- **Careful bot** (20-50): Programmed pauses for major triggers
+
+#### 10. IP / Fingerprint (neutral: 50)
+Cannot be determined from on-chain data alone. Neutral by default.
+
+#### 11. Cross-Chain Patterns (neutral: 50)
+Requires multi-chain data sources. Neutral by default.
+
+#### 12. Transaction Graph (0-100)
+Wallet interaction topology. Humans interact with a diverse web of counterparties; bots follow star/chain patterns.
+- **Human** (70-100): Varied recipients, low top-1 concentration, some EOA sends
+- **Spam bot** (0-30): Star pattern from single donor, high contract ratio
+- **Careful bot** (20-50): Intermediary layers, broken up transfers
+
+### Wallet Age Boost
+
+A post-scoring multiplicative boost is applied to the dimension composite average for wallets that **prove** they are older than 2 years:
+
+```
+age_days <= 730 -> boost = 1.0 (no boost)
+age_days > 730  -> boost = 1.0 + (age_days - 730) / 365 * 0.05
+                   capped at 1.30 (+30%)
+```
+
+The boost only activates when the wallet's actual transaction history spans >2 years — if all 100 fetched transactions are within 2 years, the data cannot prove the wallet is older, and no boost is applied. This prevents new wallets with short active histories from receiving age bonuses.
+
+### Real-World Dimension Scores
+
+Scored on Ethereum mainnet wallets:
+
+| Wallet | HPS | Strongest Dimensions | Weakest Dimensions |
+|--------|-----|---------------------|-------------------|
+| **Bitfinex Cold Wallet** | **7140** | wallet_age=95, sleep=90, timing=90, gas=86 | revert=30, entropy=48 |
+| **Vitalik Buterin** | **5870** | sleep=90, funding=84, timing=83, graph=82 | revert=8, entropy=42, gas=44 |
+| **Binance Cold Wallet** | **5840** | wallet_age=95, sleep=90, timing=82 | revert=20, gas=45, entropy=42 |
+| **Recent block senders (avg)** | **3290-5300** | sleep=65-90, timing=60-85 | wallet_age=5, gas=6-22 |
+
+The Bitfinex wallet (7140) demonstrates the age boost in action: at 3.3 years of proven history, it receives a +6.7% multiplier. New wallets and very active wallets whose 100 most recent transactions compress into less than 2 years do not receive the boost.
 
 ---
 
@@ -573,13 +703,20 @@ The dashboard persists score history in localStorage (24-hour rolling window) so
 
 | Metric | Value |
 |--------|-------|
+| Metric | Value |
+|--------|-------|
 | AUC-ROC | **0.8968** |
 | Model Architecture | XGBoost, 400 trees, depth 5 |
 | Training Dataset | 300 wallets (synthetic spectrum) |
 | Feature Count | 47 |
 | Feature Classes | 7 |
+| Dimension Scorer | 12 dimensions (0-100 each) |
+| Age Boost | +0% to +30% for wallets >2 years old |
+| Hybrid Mode | Adaptive 50/50 to 20/80 (ML/dimensions) |
 | Inference Time | <30s (first score), <1s (cached) |
 | On-chain Update Interval | 60 seconds |
+| Ghost Wallet HPS (Mantle Sepolia) | 4632 |
+| Human Wallet HPS (Bitfinex, Ethereum) | 7140 |
 
 The AUC of 0.8968 is achieved on a held-out test set (15% of dataset), evaluated after training on 70% with 15% used for early stopping. The test set includes wallets from all points on the synthetic `human_strength` spectrum, including the deliberately ambiguous middle range.
 
@@ -591,6 +728,35 @@ The AUC of 0.8968 is achieved on a held-out test set (15% of dataset), evaluated
 5. `div_3_protocol_hhi` — protocol concentration
 6. `temp_5_fast_reaction_ratio` — sub-2-second reaction fraction
 7. `port_0_size_cv` — trade size variability
+
+### Observed Score Distribution
+
+Real-world scores on Ethereum mainnet demonstrate the system's ability to separate wallets:
+
+| Score Range | Interpretation | Examples |
+|------------|---------------|----------|
+| **7000-8000** | High-confidence human | Bitfinex Cold Wallet (7140) |
+| **5000-6000** | Uncertain / active trader | Vitalik Buterin (5870), Binance Cold Wallet (5840) |
+| **3000-5000** | Likely bot / new wallet | Recent block senders, Coinbase Custody (4980) |
+| **<3000** | Spam or farm bot | High-failure or uniform wallets |
+
+### Dimension Score Interpretation
+
+Each dimension is scored 0-100 independently. The pattern of dimension scores reveals the wallet's behavioural profile at a glance:
+
+| Dimension | Bitfinex (7140) | Binance Cold (5840) | Vitalik (5870) | Ghost Bot (4632) |
+|-----------|:---:|:---:|:---:|:---:|
+| wallet_age | **95** | **95** | 74 | 30 |
+| sleep_pattern | **90** | **90** | **90** | 67 |
+| transaction_timing | **90** | 82 | 83 | 66 |
+| gas_price | **86** | 45 | 44 | 6 |
+| funding_source | 76 | 67 | **84** | 8 |
+| transaction_graph | 76 | 68 | **83** | 5 |
+| amount_entropy | 49 | 42 | 42 | 42 |
+| revert_rate | 30 | 20 | 8 | 20 |
+| contract_diversity | 51 | 44 | 43 | 51 |
+
+Old exchange wallets (Bitfinex, Binance) score high on wallet_age, sleep_pattern, and timing — reflecting years of human-administered activity. The ghost bot scores low on gas_price (6), funding_source (8), and transaction_graph (5) — exposing its origin from a single funded wallet with uniform gas strategy.
 
 ---
 
@@ -693,7 +859,9 @@ turing-protocol/
 │   └── config.py               # Environment-based configuration
 │
 ├── scorers/
-│   └── interrogator.py         # Bridge adapter for oracle service
+│   ├── dimension_scorer.py     # 12-dimension behavioral scorer (0-100 each)
+│   ├── interrogator.py         # Bridge adapter for oracle service
+│   └── hybrid_combiner.py      # Adaptive ML + dimension hybrid fusion
 │
 ├── dashboard/                  # React frontend
 │   ├── src/
@@ -917,23 +1085,44 @@ npx hardhat test
 
 5. InterrogatorModel.score_wallet(X)
    → XGBoost.predict_proba(X)[0, 1]
-   → Multiply by 10,000 → HPS integer
+   → Multiply by 10,000 → ML_HPS integer
 
-6. (if return_explanation=True)
+6. DimensionScorer.overall_score(features)
+   → Computes 12 per-dimension scores (0-100 each):
+     sleep_pattern, transaction_timing, gas_price, amount_entropy,
+     revert_rate, wallet_age, funding_source, contract_diversity,
+     news_reaction, ip_fingerprint, cross_chain, transaction_graph
+   → Averages dimension scores → Dim_avg (0-1000)
+
+7. Wallet Age Boost applied to Dim_avg
+   → Converts net_3_wallet_age_blocks_log to age_days
+   → age_days > 730 → boost = 1.0 + (age_days - 730) / 365 × 0.05
+   → Capped at 1.30 (+30% max)
+   → Dim_HPS = Dim_avg × boost × 100
+
+8. Adaptive Hybrid Combiner merges ML_HPS and Dim_HPS
+   → |ML_HPS - Dim_HPS| < 1000 → 50/50 average
+   → |ML_HPS - Dim_HPS| > 3000 → 20/80 (trust dimensions)
+   → Between → linear blend
+   → Final HPS clamped to [0, 10000]
+
+9. (if return_explanation=True)
    InterrogatorModel.explain_wallet(X)
    → TreeSHAP.shap_values(X)
    → Sort by |contribution|
    → Return top features with direction
 
-7. (if return_explanation=True)
-   InterrogatorModel.compute_behavior_fingerprint(X)
-   → Take top-10 SHAP values
-   → Quantise to integers (×1000)
-   → SHA-256 hash → bytes32
+10. (if return_explanation=True)
+    InterrogatorModel.compute_behavior_fingerprint(X)
+    → Take top-10 SHAP values
+    → Quantise to integers (×1000)
+    → SHA-256 hash → bytes32
 
-8. Result returned:
-   { hps: 7234, probability: 0.7234, confidence: "high",
-     explanation: [...], fingerprint: "0x..." }
+11. Result returned:
+    { hps: 7234, ml_hps: 7100, probability: 0.7234, confidence: "high",
+      ml_weight: 0.5, dim_weight: 0.5,
+      dimension_scores: { sleep_pattern: 90, wallet_age: 95, ... },
+      explanation: [...], fingerprint: "0x..." }
 ```
 
 ### Feature computation performance
