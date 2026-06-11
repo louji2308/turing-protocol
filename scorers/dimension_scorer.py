@@ -39,6 +39,9 @@ class DimensionScorer:
     """
 
     # Dimension weight defaults (equal weight, can be tuned)
+    # ip_fingerprint and cross_chain are set to 0 because they cannot
+    # be determined from on-chain single-chain data. Including them as
+    # neutral 50 would dilute the composite score with non-informative noise.
     WEIGHTS: Dict[str, float] = {
         "sleep_pattern":          1.0,
         "transaction_timing":     1.0,
@@ -49,8 +52,8 @@ class DimensionScorer:
         "funding_source":         1.0,
         "contract_diversity":     1.0,
         "news_reaction":          1.0,
-        "ip_fingerprint":         1.0,
-        "cross_chain":            1.0,
+        "ip_fingerprint":         0.0,
+        "cross_chain":            0.0,
         "transaction_graph":      1.0,
     }
 

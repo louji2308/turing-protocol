@@ -41,6 +41,7 @@ class ScoreSubmissionLoop:
         self._update_history: List[dict] = []
         self._is_running = False
         self._consecutive_failures = 0
+        self._current_nonce: Optional[int] = None
 
     async def run(self):
         self._is_running = True
@@ -191,9 +192,12 @@ class ScoreSubmissionLoop:
         scores: List[int]
     ) -> Optional[str]:
         def build_and_send() -> Optional[str]:
-            nonce = self.w3.eth.get_transaction_count(
-                self.operator_address, "latest"
-            )
+            if self._current_nonce is None:
+                self._current_nonce = self.w3.eth.get_transaction_count(
+                    self.operator_address, "pending"
+                )
+
+            nonce = self._current_nonce
             gas_price = self.w3.eth.gas_price
 
             tx = self.oracle_contract.functions.batchUpdateScores(
@@ -211,8 +215,25 @@ class ScoreSubmissionLoop:
             signed = self.w3.eth.account.sign_transaction(
                 tx, private_key=self.config.operator_private_key
             )
-            tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+
+            try:
+                tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+            except ValueError as e:
+                err_msg = str(e)
+                if "already known" in err_msg:
+                    logger.warning(f"Nonce {nonce} already submitted, incrementing")
+                    self._current_nonce += 1
+                    nonce = self._current_nonce
+                    tx.update({"nonce": nonce})
+                    signed = self.w3.eth.account.sign_transaction(
+                        tx, private_key=self.config.operator_private_key
+                    )
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+                else:
+                    raise
+
             tx_hash_hex = tx_hash.hex()
+            self._current_nonce += 1
 
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             if receipt["status"] != 1:

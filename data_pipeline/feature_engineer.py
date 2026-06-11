@@ -7,6 +7,13 @@ warnings.filterwarnings('ignore')
 
 
 class BehavioralFeatureEngineer:
+
+    ENTRY_POINT_ADDRESSES = {
+        "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+        "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+        "0x000000000000aDdB49795b0f9bA5BC2986f0f5c0",
+    }
+
     """
     Transforms raw transaction DataFrames into 47-dimensional
     behavioral feature vectors for the Interrogator classifier.
@@ -22,6 +29,16 @@ class BehavioralFeatureEngineer:
 
     Total: 47 features
     """
+
+    def _is_aa_wallet(self, df: pd.DataFrame) -> bool:
+        entry_point_calls = df[df["to_addr"].isin(self.ENTRY_POINT_ADDRESSES)]
+        return len(entry_point_calls) > len(df) * 0.3
+
+    def _adjust_gas_for_aa(self, features: Dict[str, float], is_aa: bool) -> Dict[str, float]:
+        if is_aa:
+            features["gas_5_mean_efficiency"] = 0.5
+            features["gas_6_efficiency_std"] = 0.1
+        return features
 
     def compute_all_features(
         self,
@@ -46,6 +63,8 @@ class BehavioralFeatureEngineer:
         if len(sender_df) < 5:
             raise ValueError("Wallet has fewer than 5 outgoing transactions.")
 
+        is_aa = self._is_aa_wallet(df)
+
         features = {}
 
         # Compute each feature class
@@ -56,6 +75,8 @@ class BehavioralFeatureEngineer:
         features.update(self._temporal_correlation_features(sender_df))
         features.update(self._behavioral_consistency_features(sender_df))
         features.update(self._network_features(df, wallet_address))
+
+        features = self._adjust_gas_for_aa(features, is_aa)
 
         assert len(features) == 47, (
             f"Expected 47 features, got {len(features)}. "

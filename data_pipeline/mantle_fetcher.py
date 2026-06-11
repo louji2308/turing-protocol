@@ -62,6 +62,23 @@ class MantleDataFetcher:
             f"Block: {self.w3.eth.block_number}"
         )
 
+    def _validate_tx_belongs_to_wallet(
+        self, txs: List[Dict], wallet_address: str
+    ) -> List[Dict]:
+        wallet_lower = wallet_address.lower()
+        validated = []
+        for tx in txs:
+            tx_from = (tx.get("from") or "").lower()
+            tx_to = (tx.get("to") or "").lower()
+            if tx_from == wallet_lower or tx_to == wallet_lower:
+                validated.append(tx)
+        if len(validated) != len(txs):
+            logger.warning(
+                f"Filtered {len(txs) - len(validated)} txs not belonging to "
+                f"{wallet_address[:10]} (possible API contamination)"
+            )
+        return validated
+
     def fetch_wallet_transactions(
         self,
         wallet_address: str,
@@ -81,12 +98,70 @@ class MantleDataFetcher:
             logger.warning("No transactions found for this wallet.")
             return pd.DataFrame()
 
+        txs = self._validate_tx_belongs_to_wallet(txs, wallet_address)
+
+        if not txs:
+            logger.warning("No valid transactions after ownership validation.")
+            return pd.DataFrame()
+
         df = pd.DataFrame(txs)
         df = self._enrich_dataframe(df, wallet_address)
         df = self._compute_temporal_features(df)
         df = self._tag_protocols(df)
 
         logger.success(f"Fetched {len(df)} transactions for {wallet_address[:10]}...")
+        return df
+
+    def fetch_wallet_transactions_adaptive(
+        self,
+        wallet_address: str,
+        min_txs: int = 50,
+        max_txs: int = 500,
+        target_days: int = 90,
+    ) -> pd.DataFrame:
+        wallet_address = Web3.to_checksum_address(wallet_address)
+        logger.info(f"Adaptive fetch for {wallet_address} (target={target_days}d, max={max_txs})")
+
+        txs = self._fetch_from_explorer(wallet_address, max_txs)
+        if not txs:
+            txs = self._fetch_via_rpc(wallet_address, max_txs)
+        if not txs:
+            return pd.DataFrame()
+
+        txs = self._validate_tx_belongs_to_wallet(txs, wallet_address)
+        if not txs:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(txs)
+        df = self._enrich_dataframe(df, wallet_address)
+        df = self._compute_temporal_features(df)
+        df = self._tag_protocols(df)
+
+        if len(df) < min_txs:
+            logger.warning(f"Only {len(df)} txs for {wallet_address[:10]} (min {min_txs})")
+            return df
+
+        if len(df) < 2:
+            return df
+
+        time_span = df["timestamp"].max() - df["timestamp"].min()
+        span_days = time_span / 86400
+
+        if span_days < target_days and len(df) < max_txs:
+            logger.info(f"Time span only {span_days:.0f}d, fetching {max_txs} txs total")
+            txs = self._fetch_from_explorer(wallet_address, max_txs)
+            if not txs:
+                txs = self._fetch_via_rpc(wallet_address, max_txs)
+            if txs:
+                df = pd.DataFrame(txs)
+                df = self._enrich_dataframe(df, wallet_address)
+                df = self._compute_temporal_features(df)
+                df = self._tag_protocols(df)
+
+        if len(df) > max_txs:
+            df = df.iloc[-max_txs:].reset_index(drop=True)
+
+        logger.success(f"Adaptive fetch: {len(df)} txs spanning {span_days:.0f}d for {wallet_address[:10]}")
         return df
 
     # ------------------------------------------------------------------

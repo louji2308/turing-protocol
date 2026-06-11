@@ -8,6 +8,7 @@ from ghost_agent.modules.gas_selector import GasSelectionModule
 from ghost_agent.modules.interaction_div import InteractionDiversificationModule
 from ghost_agent.modules.portfolio_bias import PortfolioBiasModule
 from ghost_agent.modules.news_reaction import NewsReactionModule
+from ghost_agent.modules.network_topology import NetworkTopologyModule
 
 
 class BehaviorLayer:
@@ -19,12 +20,14 @@ class BehaviorLayer:
         diversification_module: Optional[InteractionDiversificationModule] = None,
         portfolio_bias_module: Optional[PortfolioBiasModule] = None,
         news_module: Optional[NewsReactionModule] = None,
+        network_module: Optional[NetworkTopologyModule] = None,
     ):
         self.timing = timing_module
         self.gas = gas_module
         self.diversification = diversification_module
         self.portfolio_bias = portfolio_bias_module
         self.news = news_module
+        self.network = network_module
 
         self._hps_low_threshold = 4500
         self._hps_high_threshold = 6000
@@ -34,6 +37,14 @@ class BehaviorLayer:
         modified = dict(action)
         intensity = self._get_behavioral_intensity(current_hps)
         _rng = np.random.default_rng()
+
+        network_priority = current_hps < 6000 and self.network is not None
+        if network_priority and self.network.should_send_eoa_transfer(self._get_total_tx_count()):
+            eoa_action = self.network.generate_eoa_transfer()
+            if eoa_action:
+                logger.info("BehaviorLayer: Injecting EOA peer transfer (network topology)")
+                self._record_modification("eoa_transfer", eoa_action)
+                return self._finalize(eoa_action)
 
         if self.diversification and _rng.random() < intensity * 0.3:
             div_action = self.diversification.generate_interaction(current_hps)
@@ -100,12 +111,18 @@ class BehaviorLayer:
             "timestamp": time_module.time(),
         })
 
+    def _get_total_tx_count(self) -> int:
+        return len(self._modifications_history)
+
     def get_stats(self) -> dict:
         mod_types = {}
         for m in self._modifications_history[-100:]:
             t = m["type"]
             mod_types[t] = mod_types.get(t, 0) + 1
-        return {
+        result = {
             "total_modifications": len(self._modifications_history),
             "recent_types": mod_types,
         }
+        if self.network:
+            result["network"] = self.network.get_stats()
+        return result

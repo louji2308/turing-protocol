@@ -1,4 +1,5 @@
 import numpy as np
+import cma
 import time
 import asyncio
 from typing import Optional, Dict, Any, List, Tuple
@@ -51,23 +52,71 @@ class ParameterOptimizer:
             for name, (_, _, default, _) in self.PARAMETER_SPACE.items()
         }
 
+        self._param_names = list(self.PARAMETER_SPACE.keys())
+        self._param_bounds = [
+            (lo, hi)
+            for name, (lo, hi, _, _) in self.PARAMETER_SPACE.items()
+        ]
+
         self._generation = 0
         self._best_hps = 5000
         self._tx_since_update = 0
         self._current_trial_params = None
+        self._trial_direction = 1
         self._eval_history = []
 
-    async def optimize_async(self, current_hps: int, target_hps: int = 7200) -> Dict[str, Any]:
+        self._es = None
+        self._es_initialized = False
+
+    def _init_cma_es(self, direction: int):
+        x0 = np.array([self._params[name] for name in self._param_names])
+        bounds_low = np.array([b[0] for b in self._param_bounds])
+        bounds_high = np.array([b[1] for b in self._param_bounds])
+        sigma0 = 0.3 * np.mean(bounds_high - bounds_low)
+
+        inopts = {
+            'bounds': [bounds_low.tolist(), bounds_high.tolist()],
+            'maxiter': 1000,
+            'popsize': 8,
+            'verbose': -9,
+            'CMA_diagonal': True,
+            'tolx': 1e-4,
+            'tolfun': 1e-4,
+        }
+
+        self._es = cma.CMAEvolutionStrategy(x0, sigma0, inopts)
+        self._es_initialized = True
+        self._trial_direction = direction
+
+    def _params_to_dict(self, x: np.ndarray) -> Dict[str, float]:
+        return {
+            name: float(np.clip(x[i], self._param_bounds[i][0], self._param_bounds[i][1]))
+            for i, name in enumerate(self._param_names)
+        }
+
+    async def optimize_async(self, current_hps: int, target_hps: int = 7200, direction: int = 1) -> Dict[str, Any]:
         if self._current_trial_params is not None:
             return await self._complete_evaluation(current_hps)
 
-        trial = self._mutate()
+        if not self._es_initialized:
+            self._init_cma_es(direction)
+
+        self._trial_direction = direction
+
+        if self._es.stop():
+            logger.warning(f"CMA-ES converged. Resetting with new initial point.")
+            self._init_cma_es(direction)
+
+        x_trial = self._es.ask()
+        trial = self._params_to_dict(x_trial[0])
         self._current_trial_params = trial
+        self._current_x_trial = x_trial[0]
         self._tx_since_update = 0
 
+        mode_label = "IMPROVE" if direction >= 0 else "REDUCE"
         logger.info(
-            f"Parameter Optimizer: Generation {self._generation} | "
-            f"Starting trial (current best HPS: {self._best_hps})"
+            f"CMA-ES Optimizer: {mode_label} Gen {self._generation} | "
+            f"Current best HPS: {self._best_hps}"
         )
 
         self._apply_params(trial)
@@ -77,10 +126,14 @@ class ParameterOptimizer:
             "generation": self._generation,
             "trial_params": trial,
             "current_hps": current_hps,
+            "direction": direction,
         }
 
     async def _complete_evaluation(self, current_hps: int) -> Dict[str, Any]:
-        improvement = current_hps - self._best_hps
+        if self._trial_direction >= 0:
+            improvement = current_hps - self._best_hps
+        else:
+            improvement = self._best_hps - current_hps
 
         self._eval_history.append({
             "generation": self._generation,
@@ -89,8 +142,12 @@ class ParameterOptimizer:
             "hps_after": current_hps,
             "improvement": improvement,
             "accepted": improvement >= self.MIN_IMPROVEMENT,
+            "direction": self._trial_direction,
             "timestamp": int(time.time()),
         })
+
+        fval = -current_hps if self._trial_direction >= 0 else current_hps
+        self._es.tell([self._current_x_trial], [fval])
 
         if improvement >= self.MIN_IMPROVEMENT:
             self._best_hps = current_hps
@@ -99,15 +156,16 @@ class ParameterOptimizer:
             self._current_trial_params = None
 
             logger.success(
-                f"Optimizer: ACCEPTED mutation | "
-                f"HPS {self._best_hps - improvement} -> {self._best_hps} | "
-                f"Generation {self._generation}"
+                f"CMA-ES: ACCEPTED | "
+                f"HPS {self._best_hps - improvement if self._trial_direction >= 0 else self._best_hps + improvement} -> {self._best_hps} | "
+                f"Gen {self._generation}"
             )
 
             return {
                 "status": "accepted",
                 "new_best_hps": self._best_hps,
                 "improvement": improvement,
+                "direction": self._trial_direction,
             }
         else:
             self._apply_params(self._params)
@@ -115,32 +173,17 @@ class ParameterOptimizer:
             self._current_trial_params = None
 
             logger.info(
-                f"Optimizer: REJECTED mutation | "
+                f"CMA-ES: REJECTED | "
                 f"Improvement {improvement} < {self.MIN_IMPROVEMENT} | "
-                f"Reverted to best (HPS: {self._best_hps})"
+                f"Best HPS: {self._best_hps}"
             )
 
             return {
                 "status": "rejected",
                 "best_hps": self._best_hps,
                 "improvement": improvement,
+                "direction": self._trial_direction,
             }
-
-    def _mutate(self) -> Dict[str, float]:
-        trial = dict(self._params)
-        n_mutations = int(self.rng.integers(1, 4))
-        param_names = list(self.PARAMETER_SPACE.keys())
-        targets = self.rng.choice(param_names, size=n_mutations, replace=False)
-
-        for name in targets:
-            lo, hi, _default, sigma = self.PARAMETER_SPACE[name]
-            current = trial[name]
-            noise = self.rng.normal(0, sigma * (hi - lo))
-            mutated = current + noise
-            mutated = float(np.clip(mutated, lo, hi))
-            trial[name] = round(mutated, 4)
-
-        return trial
 
     def _apply_params(self, params: Dict[str, float]):
         timing = self.behavior.timing
@@ -189,4 +232,6 @@ class ParameterOptimizer:
                 if self._eval_history else 0
             ),
             "current_params": dict(self._params),
+            "optimizer_type": "cma-es",
+            "popsize": 8,
         }

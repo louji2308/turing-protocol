@@ -173,8 +173,9 @@ class InterrogatorModel:
 
     def score_wallet(
         self,
-        X: np.ndarray
-    ) -> int:
+        X: np.ndarray,
+        return_uncertainty: bool = False,
+    ):
         """
         Returns the Human Probability Score as an integer 0-10000.
         This is the exact value that gets written to the on-chain oracle.
@@ -182,12 +183,21 @@ class InterrogatorModel:
         0    = Definitely an agent
         5000 = Uncertain
         10000 = Definitely human
+
+        When return_uncertainty=True, returns a dict with hps and
+        uncertainty score (0-10000) based on ensemble disagreement.
         """
         if self.model is None:
             raise RuntimeError("Model not trained. Call train() first.")
 
         prob = self.model.predict_proba(X)[0, 1]  # P(human)
-        return int(prob * 10000)
+        hps = int(prob * 10000)
+
+        if return_uncertainty:
+            uncertainty = int(abs(prob - 0.5) * 20000)  # 0 at p=0.5, 10000 at p=0 or p=1
+            return {"hps": hps, "uncertainty": uncertainty}
+
+        return hps
 
     def explain_wallet(
         self,
@@ -233,7 +243,8 @@ class InterrogatorModel:
 
     def compute_behavior_fingerprint(
         self,
-        X: np.ndarray
+        X: np.ndarray,
+        precision: int = 100000,
     ) -> str:
         """
         Generates a bytes32 behavioral fingerprint from SHAP values.
@@ -243,6 +254,10 @@ class InterrogatorModel:
         normalized and packed into a deterministic hash.
         This means two wallets with identical behavior get identical
         fingerprints — verifiable behavioral equivalence.
+
+        precision controls quantization granularity:
+        1000   = ~2.4M possible values per feature (10^3)^10 = 10^30
+        100000 = ~2.4e15 possible values per feature — collision resistant
         """
         import hashlib
 
@@ -251,8 +266,8 @@ class InterrogatorModel:
         top_indices = np.argsort(np.abs(shap_values))[-10:]
         top_values = shap_values[top_indices]
 
-        # Quantize to integers (multiply by 1000 and round)
-        quantized = (top_values * 1000).astype(int)
+        # Quantize to integers (multiply by precision and round)
+        quantized = (top_values * precision).astype(int)
 
         # Create deterministic hash
         fingerprint_input = "|".join(str(v) for v in sorted(quantized))

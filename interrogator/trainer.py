@@ -13,6 +13,67 @@ from data_pipeline.preprocessing import FeaturePreprocessor
 from data_pipeline.mantle_fetcher import MantleDataFetcher
 
 
+def temporal_train_test_split(
+    X: np.ndarray,
+    y: np.ndarray,
+    wallet_ids: np.ndarray,
+    test_size: float = 0.2,
+    random_state: int = 42,
+) -> tuple:
+    """
+    Splits wallets into train/test by wallet identity, not by row.
+    This prevents data leakage from time-series features where
+    a wallet's early transactions could leak into test if split by row.
+
+    For full temporal holdout, use temporal_by_block_split() instead.
+    This wallet-stratified split is a minimum requirement.
+    """
+    rng = np.random.default_rng(random_state)
+    unique_wallets = np.unique(wallet_ids)
+    n_test = max(1, int(len(unique_wallets) * test_size))
+    test_wallets = set(rng.choice(unique_wallets, size=n_test, replace=False))
+
+    train_idx = [i for i, w in enumerate(wallet_ids) if w not in test_wallets]
+    test_idx = [i for i, w in enumerate(wallet_ids) if w in test_wallets]
+
+    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
+
+
+def temporal_by_block_split(
+    df: pd.DataFrame,
+    feature_cols: list,
+    label_col: str = "label",
+    wallet_col: str = "wallet_address",
+    block_col: str = "latest_block",
+    test_ratio: float = 0.2,
+) -> tuple:
+    """
+    True temporal holdout: split wallets by time.
+    Train on wallets whose latest activity predates a cutoff.
+    Test on wallets whose earliest activity postdates the cutoff.
+    This is the gold standard for time-series validation.
+    """
+    if block_col not in df.columns:
+        logger.warning(f"Column '{block_col}' not found. Falling back to random split.")
+        return None
+
+    cutoff_block = df[block_col].quantile(1.0 - test_ratio)
+    train_df = df[df[block_col] < cutoff_block].copy()
+    test_df = df[df[block_col] >= cutoff_block].copy()
+
+    if len(train_df) < 10 or len(test_df) < 5:
+        logger.warning(f"Temporal split too small (train={len(train_df)}, test={len(test_df)}). Falling back.")
+        return None
+
+    logger.info(f"Temporal split: train={len(train_df)} (pre-block {cutoff_block}), test={len(test_df)}")
+    return (
+        train_df[feature_cols].values,
+        test_df[feature_cols].values,
+        train_df[label_col].values,
+        test_df[label_col].values,
+    )
+
+
 def load_latest_ghost_data(ghost_wallet: str = None) -> pd.DataFrame:
     data_dir = Path(__file__).parent / "data"
     parquet_path = data_dir / "training_data.parquet"
@@ -31,7 +92,7 @@ def load_latest_ghost_data(ghost_wallet: str = None) -> pd.DataFrame:
     rpc_url = os.getenv("MANTLE_TESTNET_RPC", "https://rpc.sepolia.mantle.xyz")
     try:
         fetcher = MantleDataFetcher(rpc_url)
-        tx_df = fetcher.fetch_wallet_transactions(ghost, max_txs=150)
+        tx_df = fetcher.fetch_wallet_transactions_adaptive(ghost, min_txs=20, max_txs=300, target_days=30)
         if len(tx_df) < 5:
             logger.warning(f"Ghost wallet has only {len(tx_df)} txs — not enough for retraining")
             return df
@@ -75,9 +136,28 @@ def adversarial_retrain(interrogator, new_version):
         X, y = preprocessor.fit_transform(data)
         feature_names = preprocessor.feature_names
 
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+        temporal_result = None
+        wallet_col = "wallet_address" if "wallet_address" in data.columns else None
+        if wallet_col and wallet_col in data.columns:
+            wallet_ids = data[wallet_col].values if wallet_col in data.columns else np.arange(len(y))
+            temporal_result = temporal_by_block_split(
+                data, feature_names, label_col=label_col
+            )
+
+        if temporal_result is not None:
+            X_train, X_val, y_train, y_val = temporal_result
+            split_type = "temporal"
+        elif wallet_col and wallet_col in data.columns:
+            wallet_ids = data[wallet_col].values
+            X_train, X_val, y_train, y_val = temporal_train_test_split(
+                X, y, wallet_ids, test_size=0.2
+            )
+            split_type = "wallet_stratified"
+        else:
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
+            split_type = "random"
 
         model = InterrogatorModel(
             models_dir=str(Path(__file__).parent / "models")
@@ -86,8 +166,22 @@ def adversarial_retrain(interrogator, new_version):
 
         logger.success(
             f"Adversarial retraining v{new_version} complete | "
-            f"train={len(X_train)} | val={len(X_val)} | auc={train_metrics['auc']:.4f}"
+            f"split={split_type} | train={len(X_train)} | val={len(X_val)} | auc={train_metrics['auc']:.4f}"
         )
+
+        meta_path = Path(__file__).parent / "models" / "model_meta.json"
+        try:
+            with open(meta_path, "r") as f:
+                meta = json.load(f)
+            meta["split_type"] = split_type
+            meta["train_count"] = len(X_train)
+            meta["val_count"] = len(X_val)
+            meta["auc"] = train_metrics["auc"]
+            with open(meta_path, "w") as f:
+                json.dump(meta, f, indent=2)
+        except Exception:
+            pass
+
     except Exception as e:
         logger.error(f"Adversarial retraining failed: {e}")
         raise

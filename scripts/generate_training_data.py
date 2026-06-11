@@ -213,7 +213,7 @@ def main():
     all_features = []
     all_labels = []
 
-    n_wallets = 300
+    n_wallets = 1000
 
     # --- Generate wallets on a spectrum ---
     # human_strength = 0.0 → 0.2: strong agents

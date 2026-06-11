@@ -9,6 +9,7 @@ from data_pipeline.feature_engineer import BehavioralFeatureEngineer
 from data_pipeline.preprocessing import FeaturePreprocessor
 from data_pipeline.mantle_fetcher import MantleDataFetcher
 from scorers.dimension_scorer import DimensionScorer, hybrid_hps
+from oracle_service.score_cache import get_cached_score, get_cached_explanation, cache_score, clear_expired
 
 
 class WalletScorer:
@@ -68,48 +69,29 @@ class WalletScorer:
         """
         start = time.time()
 
-        # Check cache
-        cached = self._get_cached_features(wallet_address) if use_cache else None
+        # 1. Check SQLite for full cached result (including explanation)
+        cached_db = get_cached_score(wallet_address, max_age_seconds=900) if use_cache else None
+        if cached_db is not None:
+            if return_explanation and "explanation" not in cached_db:
+                cached_db["explanation"] = get_cached_explanation(wallet_address)
+            logger.debug(f"Using SQLite cache for {wallet_address[:10]}")
+            return cached_db
 
-        if cached is not None:
-            features_dict = cached
-            logger.debug(f"Using cached features for {wallet_address[:10]}")
-        else:
-            # Fetch and engineer features
-            try:
-                df = self.fetcher.fetch_wallet_transactions(
-                    wallet_address, max_txs=150
-                )
-                if len(df) < 10:
-                    return self._insufficient_history_result(wallet_address)
+        # 2. Compute score (without explanation — SHAP is slow)
+        features_dict = self._compute_features(wallet_address, use_cache)
+        if features_dict is None:
+            return self._insufficient_history_result(wallet_address)
 
-                features_dict = self.engineer.compute_all_features(
-                    df, wallet_address
-                )
-                self._cache_features(wallet_address, features_dict)
-
-            except Exception as e:
-                logger.error(f"Feature engineering failed for {wallet_address[:10]}: {e}")
-                return self._error_result(wallet_address, str(e))
-
-        # Transform for model
         X = self.preprocessor.transform(features_dict)
-
-        # Score
         ml_hps = self.model.score_wallet(X)
 
-        # Hybrid: combine ML prediction with dimension-based scoring
-        # Mantle Sepolia block time = 2s
         final_hps, ml_weight, dim_weight, dim_scores = hybrid_hps(
-            ml_hps=ml_hps,
-            features=features_dict,
-            dim_scorer=self.dim_scorer,
-            block_time=2.0,
+            ml_hps=ml_hps, features=features_dict,
+            dim_scorer=self.dim_scorer, block_time=2.0,
         )
         hps = final_hps
         probability = hps / 10000.0
 
-        # Determine confidence
         if probability > 0.85 or probability < 0.15:
             confidence = "high"
         elif probability > 0.70 or probability < 0.30:
@@ -130,17 +112,42 @@ class WalletScorer:
             "computation_ms": int((time.time() - start) * 1000),
         }
 
+        # 3. Compute explanation only if requested (and only on first request)
         if return_explanation:
+            logger.info(f"Computing SHAP explanation for {wallet_address[:10]}...")
             result["explanation"] = self.model.explain_wallet(X)
             result["fingerprint"] = self.model.compute_behavior_fingerprint(X)
 
+        # 4. Cache result (without explanation first, then with it on next cache cycle)
+        try:
+            cache_score(wallet_address, result)
+        except Exception:
+            pass
+
+        elapsed = result['computation_ms']
         logger.info(
             f"Scored {wallet_address[:10]}... | "
-            f"HPS={hps} ({probability:.1%}) [{confidence}] | "
-            f"{result['computation_ms']}ms"
+            f"HPS={hps} ({probability:.1%}) [{confidence}] | {elapsed}ms"
         )
 
         return result
+
+    def _compute_features(self, wallet_address: str, use_cache: bool) -> Optional[dict]:
+        cached = self._get_cached_features(wallet_address) if use_cache else None
+        if cached is not None:
+            return cached
+        try:
+            df = self.fetcher.fetch_wallet_transactions_adaptive(
+                wallet_address, min_txs=50, max_txs=500, target_days=90
+            )
+            if len(df) < 10:
+                return None
+            features_dict = self.engineer.compute_all_features(df, wallet_address)
+            self._cache_features(wallet_address, features_dict)
+            return features_dict
+        except Exception as e:
+            logger.error(f"Feature engineering failed for {wallet_address[:10]}: {e}")
+            return None
 
     def score_batch(
         self,

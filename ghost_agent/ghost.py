@@ -13,6 +13,7 @@ from ghost_agent.modules.gas_selector import GasSelectionModule
 from ghost_agent.modules.interaction_div import InteractionDiversificationModule
 from ghost_agent.modules.portfolio_bias import PortfolioBiasModule
 from ghost_agent.modules.news_reaction import NewsReactionModule
+from ghost_agent.modules.network_topology import NetworkTopologyModule
 from ghost_agent.modules.param_optimizer import ParameterOptimizer
 from ghost_agent.strategy_layer import StrategyLayer
 from ghost_agent.behavior_layer import BehaviorLayer
@@ -23,7 +24,7 @@ load_dotenv()
 class GhostAgent:
 
     OPTIMIZATION_TRIGGER_HPS = 4500
-    TARGET_HPS = 5500
+    TARGET_HPS = 8000
 
     def __init__(self):
         self.rpc_url = (
@@ -52,12 +53,17 @@ class GhostAgent:
             w3=self.w3,
             private_key=self.private_key,
         )
+        self.network = NetworkTopologyModule(
+            w3=self.w3,
+            private_key=self.private_key,
+        )
         self.behavior = BehaviorLayer(
             timing_module=self.timing,
             gas_module=self.gas,
             diversification_module=self.diversification,
             portfolio_bias_module=self.portfolio_bias,
             news_module=self.news,
+            network_module=self.network,
         )
         self.oracle_contract = self._load_oracle_contract()
         self.optimizer = ParameterOptimizer(
@@ -117,11 +123,26 @@ class GhostAgent:
         if self.current_hps < self.OPTIMIZATION_TRIGGER_HPS:
             logger.warning(
                 f"HPS {self.current_hps} < {self.OPTIMIZATION_TRIGGER_HPS}. "
-                f"Running optimizer..."
+                f"Running optimizer (improve)..."
             )
             opt_result = await self.optimizer.optimize_async(
                 current_hps=self.current_hps,
-                target_hps=self.TARGET_HPS
+                target_hps=self.TARGET_HPS,
+                direction=1
+            )
+            await self._emit_telemetry({
+                "type": "optimization",
+                "result": opt_result,
+            })
+        elif self.current_hps > self.TARGET_HPS + 200:
+            logger.warning(
+                f"HPS {self.current_hps} > {self.TARGET_HPS + 200}. "
+                f"Running optimizer (reduce mimicry)..."
+            )
+            opt_result = await self.optimizer.optimize_async(
+                current_hps=self.current_hps,
+                target_hps=self.TARGET_HPS,
+                direction=-1
             )
             await self._emit_telemetry({
                 "type": "optimization",
@@ -169,6 +190,9 @@ class GhostAgent:
             "timing_state": self.timing.get_current_state(),
         })
 
+        if raw_action.get("type") == "eoa_transfer":
+            self.network.record_transfer(raw_action, execution_result)
+
         self.portfolio_bias.record_trade({
             "timestamp": int(time.time()),
             "size": raw_action.get("amount_wei", 0),
@@ -204,6 +228,8 @@ class GhostAgent:
                 return await self._execute_add_liquidity(action)
             elif action_type == "diversification":
                 return await self._execute_diversification(action)
+            elif action_type == "eoa_transfer":
+                return await self._execute_eoa_transfer(action)
             else:
                 logger.warning(f"Unknown action type: {action_type}")
                 return {"status": "skipped", "reason": f"unknown_type_{action_type}"}
@@ -264,6 +290,35 @@ class GhostAgent:
         self.diversification.record_execution(action, result)
         return result
 
+    async def _execute_eoa_transfer(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        to_addr = action.get("to")
+        amount_wei = action.get("amount_wei", 0.01 * 1e18)
+        logger.info(f"EOA transfer: {amount_wei / 1e18:.4f} MNT -> {str(to_addr)[:10]}...")
+
+        try:
+            tx = {
+                "to": to_addr,
+                "value": int(amount_wei),
+                "gas": 21000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": self.w3.eth.get_transaction_count(self.wallet_address),
+                "chainId": self.w3.eth.chain_id,
+            }
+            signed = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            logger.success(f"EOA transfer sent | hash={tx_hash.hex()[:18]}...")
+            return {
+                "status": "success" if receipt["status"] == 1 else "failed",
+                "action_type": "eoa_transfer",
+                "tx_hash": tx_hash.hex(),
+                "amount_wei": amount_wei,
+                "to": to_addr,
+            }
+        except Exception as e:
+            logger.error(f"EOA transfer failed: {e}")
+            return {"status": "error", "error": str(e)[:200], "action_type": "eoa_transfer"}
+
     async def _emit_telemetry(self, data: dict):
         try:
             self._telemetry_queue.put_nowait({
@@ -287,6 +342,7 @@ class GhostAgent:
             "trades": len(self.trade_history),
             "timing_state": self.timing.get_current_state(),
             "optimizer": self.optimizer.get_stats(),
+            "network": self.network.get_stats(),
         }
 
     def stop(self):
