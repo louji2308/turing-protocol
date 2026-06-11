@@ -35,3 +35,12 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI / Agent configs (IDE-specific, not part of the project)
+.qodo/
+contracts/.claude/
+contracts/.agents/
+
+# Planning documents
+Plan.md
+Plan_old.md
