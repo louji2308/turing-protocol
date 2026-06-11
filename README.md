@@ -61,20 +61,20 @@ Turing Protocol is a **live, autonomous, self-improving on-chain proof-of-humani
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        TURING PROTOCOL                              │
 │                                                                     │
-│  ┌──────────────┐     ┌───────────────┐     ┌──────────────────┐   │
-│  │  GHOST AGENT │────▶│  THE          │────▶│  HPS ORACLE      │   │
-│  │  (Adversary) │     │  INTERROGATOR │     │  (On-chain)      │   │
+│  ┌──────────────┐     ┌───────────────┐     ┌──────────────────┐    │
+│  │  GHOST AGENT │────▶│  THE          │────▶│  HPS ORACLE     │    │
+│  │  (Adversary) │     │  INTERROGATOR │     │  (On-chain)      │    │
 │  │              │◀────│  (XGBoost+    │     │                  │   │
-│  │  Adapts when │     │   SHAP)       │     │  Scores 0-10000  │   │
-│  │  detected    │     │               │     │  for any wallet  │   │
-│  └──────────────┘     └───────────────┘     └────────┬─────────┘   │
+│  │  Adapts when │     │   SHAP)       │     │  Scores 0-10000  │    │
+│  │  detected    │     │               │     │  for any wallet  │    │
+│  └──────────────┘     └───────────────┘     └────────┬─────────┘    │
 │                                                       │             │
-│                                              ┌────────▼─────────┐  │
-│                                              │  PROOF OF        │  │
-│                                              │  BEHAVIOR NFT    │  │
-│                                              │  (Soulbound ERC- │  │
-│                                              │  721, non-xfer)  │  │
-│                                              └──────────────────┘  │
+│                                              ┌────────▼─────────┐   │
+│                                              │  PROOF OF        │   │
+│                                              │  BEHAVIOR NFT    │   │
+│                                              │  (Soulbound ERC- │   │
+│                                              │  721, non-xfer)  │   │
+│                                              └──────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -108,25 +108,25 @@ The system works as follows:
 │  │getScore() │  │   │  ┌────────────────────────────────────────────────┐   │  │
 │  │batchUpd.. │──┼──▶│  │                  WalletScorer                  │   │  │
 │  ┌───────────┐  │   │  │                                                │   │  │
-│  │ProofOf    │◀─┼── │   │  │  MantleDataFetcher → FeatureEngineer           │   │  │
+│  │ProofOf    │◀─┼── │   │  │  MantleDataFetcher → FeatureEngineer       │   │  │
 │  │Behavior   │  │   │  │  (47 features)       (7 feature classes)       │   │  │
 │  │(Soulbound │  │   │  │                                                │   │  │
-│  │ ERC-721)  │  │   │  │  ┌──────── ML Path ────────┐                 │   │  │
-│  │  └───────────┘  │   │  │  │ FeaturePreprocessor  │                 │   │  │
-│  └───────────┘  │   │  │  │ (RobustScaler)     │                 │   │  │
-│                 │   │  │  │ InterrogatorModel  │                 │   │  │
-│                 │   │  │  │ (XGBoost + SHAP)   │                 │   │  │
-│                 │   │  │  └───────── ML_HPS ────────┘                 │   │  │
+│  │ ERC-721)  │  │   │  │  ┌──────── ML Path ────────┐                   │   │  │
+│  │  └───────────┘  │   │  │  │ FeaturePreprocessor  │                   │   │  │
+│  └───────────┘  │   │  │  │ (RobustScaler)          │                   │   │  │
+│                 │   │  │  │ InterrogatorModel       │                   │   │  │
+│                 │   │  │  │ (XGBoost + SHAP)        │                   │   │  │
+│                 │   │  │  └───────── ML_HPS ────────┘                   │   │  │
 │                 │   │  │                                                │   │  │
 │                 │   │  │  ┌────── Dimension Path ──────┐                │   │  │
-│                 │   │  │  │ DimensionScorer       │                │   │  │
-│                 │   │  │  │ (12 dimensions, 0-100) │                │   │  │
-│                 │   │  │  │ Wallet Age Boost      │                │   │  │
-│                 │   │  │  │ (×1.30 max)          │                │   │  │
-│                 │   │  │  └─────── Dim_HPS ───────┘                │   │  │
+│                 │   │  │  │ DimensionScorer            │                │   │  │
+│                 │   │  │  │ (12 dimensions, 0-100)     │                │   │  │
+│                 │   │  │  │ Wallet Age Boost           │                │   │  │
+│                 │   │  │  │ (×1.30 max)                │                │   │  │
+│                 │   │  │  └─────── Dim_HPS ────────────┘                │   │  │
 │                 │   │  │                                                │   │  │
 │                 │   │  │  Adaptive Hybrid Combiner                      │   │  │
-│                 │   │  │  (50/50 if agree, 20/80 if disagree)          │   │  │
+│                 │   │  │  (50/50 if agree, 20/80 if disagree)           │   │  │
 │  │ ERC-721)  │  │   │  └────────────────────────────────────────────────┘   │  │
 │  └───────────┘  │   │                                                       │  │
 │                 │   │  AdversarialRetrainer                                 │  │
@@ -506,23 +506,23 @@ This is the centrepiece innovation of Turing Protocol. It is, in effect, a **Gen
 │                    THE ADVERSARIAL LOOP                                     │
 │                                                                             │
 │                                                                             │
-│   GHOST AGENT                         INTERROGATOR                         │
-│   ──────────                         ─────────────                         │
+│   GHOST AGENT                         INTERROGATOR                          │
+│   ──────────                         ─────────────                          │
 │   Trades with human                                                         │
-│   behavioural mimicry  ──txns──▶  Analyses transaction                     │
+│   behavioural mimicry  ──txns──▶  Analyses transaction                      │
 │                                   history                                   │
 │                                        │                                    │
 │                                        ▼                                    │
 │                                   HPS Score computed                        │
 │                                   + SHAP explanations                       │
-│                                        │                                    │
-│                                        ▼                                    │
+│                                           │                                 │
+│                                           ▼                                 │
 │   ParameterOptimizer                                                        │
-│   receives score signal  ◀──HPS──  HPSOracle stores                        │
+│   receives score signal  ◀──HPS──  HPSOracle stores                         │
 │   Mutates parameters                  score on-chain                        │
 │   toward higher HPS                        │                                │
 │        │                                   ▼                                │
-│        │                          HPS ≥ 7,800 for 3+                       │
+│        │                          HPS ≥ 7,800 for 3+                        │
 │        │                          consecutive checks?                       │
 │        │                                   │                                │
 │        │                                  YES                               │
@@ -534,7 +534,7 @@ This is the centrepiece innovation of Turing Protocol. It is, in effect, a **Gen
 │        │                                   │                                │
 │        │                                   ▼                                │
 │   Model v(n+1) deployed  ◀────  New model version                          │
-│   Ghost must now fool              deployed to oracle                        │
+│   Ghost must now fool              deployed to oracle                       │
 │   the improved model               service                                  │
 │        │                                   │                                │
 │        └───────────────────────────────────┘                                │
@@ -913,7 +913,7 @@ turing-protocol/
 ### 1. Clone and install Python dependencies
 
 ```bash
-git clone https://github.com/your-org/turing-protocol
+git clone https://github.com/louji2308/turing-protocol
 cd turing-protocol
 
 python -m venv venv
