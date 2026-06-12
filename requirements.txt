@@ -35,4 +35,4 @@ loguru==0.7.2
 tqdm==4.66.5
 
 # Optimization
-cma==4.0.1
+cma==4.2.0
