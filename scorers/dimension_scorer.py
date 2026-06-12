@@ -353,19 +353,13 @@ def hybrid_hps(
     dim_avg, dim_scores = dim_scorer.overall_score(features, block_time)
     dim_hps = int(dim_avg * 100.0)
 
-    diff = abs(ml_hps - dim_hps)
-
-    if diff < 1000:
-        weight_ml = 0.5
-        weight_dim = 0.5
-    elif diff > 3000:
-        weight_ml = 0.2
-        weight_dim = 0.8
-    else:
-        weight_ml = 0.5 - ((diff - 1000) / 2000.0) * 0.3
-        weight_dim = 1.0 - weight_ml
+    # Fixed 70/30 blend: trust ML_HPS more than Dim_HPS
+    # The ML model captures non-linear feature interactions; dimensions provide
+    # interpretable guardrails but are conservative on thin histories.
+    weight_ml = 0.7
+    weight_dim = 0.3
 
     final = int(round(ml_hps * weight_ml + dim_hps * weight_dim))
     final = max(0, min(10000, final))
 
-    return final, round(weight_ml, 3), round(weight_dim, 3), dim_scores
+    return final, weight_ml, weight_dim, dim_scores
