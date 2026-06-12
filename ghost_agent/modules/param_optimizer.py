@@ -190,20 +190,21 @@ class ParameterOptimizer:
         gas = self.behavior.gas
         portfolio = self.behavior.portfolio_bias
 
-        if hasattr(timing, 'FOCUSED_MU') and hasattr(timing.__class__, 'FOCUSED_MU'):
-            timing.__class__.FOCUSED_MU = params.get("timing_focus_mu", timing.FOCUSED_MU)
-            timing.__class__.FOCUSED_SIGMA = params.get("timing_focus_sigma", timing.FOCUSED_SIGMA)
-            timing.__class__.DISTRACTED_MU = params.get("timing_distract_mu", timing.DISTRACTED_MU)
-            timing.__class__.DISTRACTED_SIGMA = params.get("timing_distract_sigma", timing.DISTRACTED_SIGMA)
-            timing.__class__.P_FOCUS_TO_DISTRACT = params.get("timing_p_focus_to_distract", timing.P_FOCUS_TO_DISTRACT)
-            timing.__class__.P_DISTRACT_TO_FOCUS = params.get("timing_p_distract_to_focus", timing.P_DISTRACT_TO_FOCUS)
+        if timing is not None:
+            timing.clear_overrides()
+            timing.set_override("FOCUSED_MU", params.get("timing_focus_mu", timing.FOCUSED_MU))
+            timing.set_override("FOCUSED_SIGMA", params.get("timing_focus_sigma", timing.FOCUSED_SIGMA))
+            timing.set_override("DISTRACTED_MU", params.get("timing_distract_mu", timing.DISTRACTED_MU))
+            timing.set_override("DISTRACTED_SIGMA", params.get("timing_distract_sigma", timing.DISTRACTED_SIGMA))
+            timing.set_override("P_FOCUS_TO_DISTRACT", params.get("timing_p_focus_to_distract", timing.P_FOCUS_TO_DISTRACT))
+            timing.set_override("P_DISTRACT_TO_FOCUS", params.get("timing_p_distract_to_focus", timing.P_DISTRACT_TO_FOCUS))
 
         if hasattr(gas, 'STRATEGY_WEIGHTS'):
             round_w = params.get("gas_round_weight", 0.30)
             buffer_w = params.get("gas_buffer_weight", 0.30)
-            exact_w = 1.0 - round_w - buffer_w - 0.20
             urgency_w = params.get("gas_urgency_weight", 0.10)
             underpay_w = params.get("gas_underpay_weight", 0.10)
+            exact_w = 1.0 - round_w - buffer_w - urgency_w - underpay_w
             total = round_w + buffer_w + exact_w + urgency_w + underpay_w
             gas.__class__.STRATEGY_WEIGHTS = [
                 round_w / total, buffer_w / total,

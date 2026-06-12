@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract HPSOracle {
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract HPSOracle is Pausable {
 
     address public operator;
 
@@ -22,6 +24,12 @@ contract HPSOracle {
     mapping(address => bool) public isOperator;
 
     address[] public operatorList;
+
+    uint16 public maxScoreChange;
+
+    uint256 public constant MAX_SCORE_DELAY = 24 hours;
+
+    uint256 public constant MAX_BATCH_SIZE = 500;
 
     event ScoreUpdated(
         address indexed wallet,
@@ -49,6 +57,12 @@ contract HPSOracle {
 
     event OperatorRemoved(address indexed operator);
 
+    event MaxScoreChangeUpdated(uint16 oldValue, uint16 newValue);
+
+    event ContractPaused(address indexed triggeredBy);
+
+    event ContractUnpaused(address indexed triggeredBy);
+
     modifier onlyOperator() {
         require(isOperator[msg.sender], "HPSOracle: caller is not an operator");
         _;
@@ -62,6 +76,7 @@ contract HPSOracle {
         operatorList.push(_operator);
         operatorCount = 1;
         operatorQuorum = 1;
+        maxScoreChange = 2500;
     }
 
     function addOperator(address _newOperator) external onlyOperator {
@@ -100,17 +115,43 @@ contract HPSOracle {
         }
     }
 
+    function setMaxScoreChange(uint16 _newMax) external onlyOperator {
+        require(_newMax > 0 && _newMax <= 10000, "HPSOracle: invalid max change");
+        uint16 old = maxScoreChange;
+        maxScoreChange = _newMax;
+        emit MaxScoreChangeUpdated(old, _newMax);
+    }
+
+    function pause() external onlyOperator {
+        _pause();
+        emit ContractPaused(msg.sender);
+    }
+
+    function unpause() external onlyOperator {
+        _unpause();
+        emit ContractUnpaused(msg.sender);
+    }
+
+    function _checkScoreChange(address wallet, uint16 newScore) internal view {
+        uint16 oldScore = scores[wallet];
+        if (oldScore == 0 || block.timestamp - lastUpdated[wallet] > MAX_SCORE_DELAY) {
+            return;
+        }
+        uint256 change = newScore > oldScore ? newScore - oldScore : oldScore - newScore;
+        require(change <= maxScoreChange, "HPSOracle: score change exceeds max");
+    }
+
     function batchUpdateScores(
         address[] calldata wallets,
         uint16[] calldata newScores,
         uint16 _modelVersion
-    ) external onlyOperator {
+    ) external onlyOperator whenNotPaused {
         require(
             wallets.length == newScores.length,
             "HPSOracle: length mismatch"
         );
         require(
-            wallets.length <= 500,
+            wallets.length <= MAX_BATCH_SIZE,
             "HPSOracle: batch too large (max 500)"
         );
 
@@ -121,6 +162,7 @@ contract HPSOracle {
             uint16 newScore = newScores[i];
 
             require(newScore <= 10000, "HPSOracle: score exceeds maximum");
+            _checkScoreChange(wallet, newScore);
 
             if (scores[wallet] == 0 && lastUpdated[wallet] == 0) {
                 totalScoredWallets++;
@@ -150,9 +192,9 @@ contract HPSOracle {
         uint16 _modelVersion,
         address[] calldata signers,
         bytes[] calldata signatures
-    ) external {
+    ) external whenNotPaused {
         require(wallets.length == newScores.length, "HPSOracle: length mismatch");
-        require(wallets.length <= 500, "HPSOracle: batch too large (max 500)");
+        require(wallets.length <= MAX_BATCH_SIZE, "HPSOracle: batch too large (max 500)");
         require(signers.length >= operatorQuorum, "HPSOracle: quorum not met");
         require(signers.length == signatures.length, "HPSOracle: signer/sig mismatch");
 
@@ -173,6 +215,7 @@ contract HPSOracle {
             address wallet = wallets[i];
             uint16 newScore = newScores[i];
             require(newScore <= 10000, "HPSOracle: score exceeds maximum");
+            _checkScoreChange(wallet, newScore);
 
             if (scores[wallet] == 0 && lastUpdated[wallet] == 0) {
                 totalScoredWallets++;

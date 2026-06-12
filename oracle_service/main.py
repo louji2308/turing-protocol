@@ -1,11 +1,16 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional, List
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "data_pipeline"))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+_data_pipeline = str(_project_root / "data_pipeline")
+if _data_pipeline not in sys.path:
+    sys.path.insert(0, _data_pipeline)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,11 +38,22 @@ if config_errors:
         logger.error("RPC URL is required. Exiting.")
         sys.exit(1)
 
-w3 = Web3(Web3.HTTPProvider(config.rpc_url))
+w3 = Web3(Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 30}))
 if not w3.is_connected():
     logger.error(f"Cannot connect to {config.rpc_url}")
     sys.exit(1)
 logger.success(f"Connected to chain {config.chain_id} via {config.rpc_url}")
+
+
+def _ensure_connected():
+    if not w3.is_connected():
+        logger.warning("RPC disconnected. Reconnecting...")
+        w3.provider = Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 30})
+        if not w3.is_connected():
+            logger.error("Failed to reconnect to RPC")
+            return False
+        logger.success("Reconnected to RPC")
+    return True
 
 oracle_contract = ContractLoader.load_hps_oracle(w3, config)
 pob_contract = ContractLoader.load_proof_of_behavior(w3, config)
@@ -164,7 +180,7 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    logger.error(f"Unhandled exception: {exc}")
+    logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
@@ -197,8 +213,8 @@ async def stats():
         total_scored = oracle_contract.functions.totalScoredWallets().call() if oracle_contract else 0
         total_fresh = pob_contract.functions.totalFreshProofs().call() if pob_contract else 0
         total_minted_val = pob_contract.functions.totalMinted().call() if pob_contract else 0
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Stats contract call failed: {e}")
     return {
         "total_scored_wallets": total_scored,
         "total_fresh_proofs": total_fresh,
@@ -236,7 +252,7 @@ async def leaderboard(top_n: int = 50):
         raise HTTPException(status_code=503, detail="Oracle contract not loaded")
 
     try:
-        active_wallets = await score_loop._get_active_wallets() if score_loop else []
+        active_wallets = await score_loop.get_active_wallets() if score_loop else []
         entries = []
 
         for wallet in active_wallets[:top_n]:

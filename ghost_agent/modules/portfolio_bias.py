@@ -15,9 +15,9 @@ class PortfolioBiasModule:
 
     ROUND_VALUES_MNT = [0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0]
 
-    def __init__(self, params: Optional[dict] = None):
+    def __init__(self, params: Optional[dict] = None, seed: Optional[int] = None):
         self.params = {**self.DEFAULT_PARAMS, **(params or {})}
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed)
         self._trade_history: List[dict] = []
 
     def modify_trade_size(self, base_size_wei: int, trade_type: str) -> int:

@@ -45,6 +45,7 @@ class POBEligibilityChecker:
         self._total_freshness_updates = 0
         self._tracked_wallets: Dict[str, dict] = {}
         self._last_check_time = 0.0
+        self._last_requested_block = 0
 
     async def run(self):
         self._is_running = True
@@ -53,6 +54,7 @@ class POBEligibilityChecker:
         while self._is_running:
             try:
                 await self._check_cycle()
+                await self._process_freshness_requests()
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -62,6 +64,45 @@ class POBEligibilityChecker:
 
     def stop(self):
         self._is_running = False
+
+    async def _process_freshness_requests(self):
+        try:
+            current_block = await asyncio.to_thread(
+                lambda: self.w3.eth.block_number
+            )
+            from_block = self._last_requested_block
+            if from_block >= current_block:
+                return
+
+            events = await asyncio.to_thread(
+                lambda: self.pob_contract.events.FreshnessCheckRequested.get_logs(
+                    fromBlock=from_block,
+                    toBlock="latest"
+                )
+            )
+            self._last_requested_block = current_block
+
+            processed = set()
+            for event in events:
+                wallet = event["args"]["wallet"]
+                wl = wallet.lower()
+                if wl in processed:
+                    continue
+                processed.add(wl)
+
+                score_data = await asyncio.to_thread(
+                    lambda: self.oracle_contract.functions.getScore(wallet).call()
+                )
+                current_score = score_data if isinstance(score_data, int) else 0
+
+                if current_score > 0:
+                    await self._update_existing_proof(wallet, current_score)
+
+            if processed:
+                logger.info(f"Processed {len(processed)} freshness check requests")
+
+        except Exception as e:
+            logger.debug(f"Freshness request processing failed: {e}")
 
     async def _check_cycle(self):
         cycle_start = time.time()
@@ -215,8 +256,11 @@ class POBEligibilityChecker:
                     "gas": 300000,
                 })
 
-                estimated = self.w3.eth.estimate_gas(tx)
-                tx["gas"] = int(estimated * 1.2)
+                try:
+                    estimated = self.w3.eth.estimate_gas(tx)
+                    tx["gas"] = int(estimated * 1.2)
+                except Exception:
+                    pass
 
                 signed = self.w3.eth.account.sign_transaction(
                     tx, private_key=self.config.operator_private_key
@@ -245,7 +289,7 @@ class POBEligibilityChecker:
         except Exception as e:
             logger.error(f"Mint transaction failed for {wallet[:10]}...: {e}")
 
-    async def _update_existing_proof(self, wallet: str, current_score: int, tracked: dict):
+    async def _update_existing_proof(self, wallet: str, current_score: int, tracked: dict = None):
         try:
             def update():
                 nonce = self.w3.eth.get_transaction_count(
@@ -278,7 +322,7 @@ class POBEligibilityChecker:
 
     async def _compute_fingerprint(self, wallet: str) -> bytes:
         try:
-            result = self.scorer.score(wallet, use_cache=True, return_explanation=True)
+            result = await asyncio.to_thread(self.scorer.score, wallet, True, True)
             if "fingerprint" in result:
                 return bytes.fromhex(result["fingerprint"][2:])
         except Exception:

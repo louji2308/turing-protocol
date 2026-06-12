@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
 import argparse
 from loguru import logger
 from dotenv import load_dotenv
@@ -16,8 +17,10 @@ def setup_logging():
         level=os.getenv("LOG_LEVEL", "INFO"),
         colorize=True,
     )
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
     logger.add(
-        "logs/ghost_agent.log",
+        str(log_dir / "ghost_agent.log"),
         rotation="10 MB",
         retention=3,
         level="DEBUG",

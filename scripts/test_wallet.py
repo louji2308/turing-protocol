@@ -1,4 +1,4 @@
-import sys; sys.path.insert(0, '.')
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import os, json, joblib
 import pandas as pd
 import numpy as np
@@ -30,8 +30,8 @@ for addr in WALLETS:
     if not addr: continue
     print(f"\n--- {addr[:10]}... ---")
     df = fetcher.fetch_wallet_transactions(addr, max_txs=200)
-    if df is None or len(df) < 10:
-        print(f"  Only {len(df) if df is not None else 0} txs — need 10+")
+    if len(df) < 10:
+        print(f"  Only {len(df)} txs — need 10+")
         continue
 
     features = engineer.compute_all_features(df, addr)

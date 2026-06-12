@@ -33,7 +33,9 @@ class GhostAgent:
             else os.getenv("MANTLE_MAINNET_RPC")
         )
         self.private_key = os.getenv("GHOST_PRIVATE_KEY")
-        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
+        if not self.private_key:
+            raise ValueError("GHOST_PRIVATE_KEY environment variable is not set")
+        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 30}))
         self.account = Account.from_key(self.private_key)
         self.wallet_address = self.account.address
 
@@ -41,7 +43,7 @@ class GhostAgent:
 
         self.MERCHANT_MOE_ROUTER = os.getenv(
             "MERCHANT_MOE_ROUTER",
-            "0x...",
+            "",
         )
 
         self.timing = TimingNoiseModule()
@@ -64,6 +66,7 @@ class GhostAgent:
             portfolio_bias_module=self.portfolio_bias,
             news_module=self.news,
             network_module=self.network,
+            w3=self.w3,
         )
         self.oracle_contract = self._load_oracle_contract()
         self.optimizer = ParameterOptimizer(
@@ -149,16 +152,16 @@ class GhostAgent:
                 "result": opt_result,
             })
 
+        strategy_action = await self.strategy.decide()
+
         news_action = self.behavior.check_news_reaction()
         if news_action:
             logger.info(f"News reaction triggered: {news_action['event_id']}")
-            for _ in range(news_action.get("burst_size", 1)):
-                action = self.strategy.decide()
-                if action:
-                    modified = self.behavior.modify(action, self.current_hps)
+            if strategy_action:
+                for _ in range(news_action.get("burst_size", 1)):
+                    modified = self.behavior.modify(strategy_action, self.current_hps)
                     await self._execute_and_record(modified)
 
-        strategy_action = await self.strategy.decide()
         if strategy_action is None:
             wait_time = 120 + self.timing.get_delay()
             logger.debug(f"No action. Waiting {wait_time:.0f}s")
@@ -292,6 +295,8 @@ class GhostAgent:
 
     async def _execute_eoa_transfer(self, action: Dict[str, Any]) -> Dict[str, Any]:
         to_addr = action.get("to")
+        if not to_addr or not Web3.is_address(to_addr):
+            return {"status": "error", "error": "invalid recipient address", "action_type": "eoa_transfer"}
         amount_wei = action.get("amount_wei", 0.01 * 1e18)
         logger.info(f"EOA transfer: {amount_wei / 1e18:.4f} MNT -> {str(to_addr)[:10]}...")
 

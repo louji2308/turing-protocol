@@ -1,6 +1,7 @@
 import time as time_module
 from typing import Optional, Dict, Any
 import numpy as np
+from web3 import Web3
 from loguru import logger
 
 from ghost_agent.modules.timing_noise import TimingNoiseModule
@@ -21,6 +22,7 @@ class BehaviorLayer:
         portfolio_bias_module: Optional[PortfolioBiasModule] = None,
         news_module: Optional[NewsReactionModule] = None,
         network_module: Optional[NetworkTopologyModule] = None,
+        w3: Optional[Any] = None,
     ):
         self.timing = timing_module
         self.gas = gas_module
@@ -28,6 +30,7 @@ class BehaviorLayer:
         self.portfolio_bias = portfolio_bias_module
         self.news = news_module
         self.network = network_module
+        self.w3 = w3
 
         self._hps_low_threshold = 4500
         self._hps_high_threshold = 6000
@@ -95,10 +98,12 @@ class BehaviorLayer:
             return 1.0
 
     def _get_suggested_gas_price(self) -> int:
-        try:
-            return 1000000000
-        except Exception:
-            return 1000000000
+        if self.w3 is not None:
+            try:
+                return int(self.w3.eth.gas_price)
+            except Exception:
+                pass
+        return 1000000000
 
     def _finalize(self, action: Dict[str, Any]) -> Dict[str, Any]:
         action["_behavior_version"] = "4.0"

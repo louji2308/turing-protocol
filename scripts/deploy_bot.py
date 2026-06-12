@@ -3,8 +3,11 @@ Deploys a simple agent bot on Mantle Sepolia.
 Sends 5 transactions every 30 seconds so you have labeled agent data.
 Run this in a separate terminal and let it run for 5-10 minutes.
 """
-import sys; sys.path.insert(0, '.')
-import os, time
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import os
+import time
 from web3 import Web3
 from dotenv import load_dotenv
 

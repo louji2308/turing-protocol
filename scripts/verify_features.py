@@ -1,6 +1,7 @@
 # scripts/verify_features.py
 import sys
-sys.path.insert(0, '.')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
@@ -86,7 +87,7 @@ except Exception as e:
 
 print()
 print("=== Comparing key signals: HUMAN vs AGENT ===")
-if 'feats_h' in dir() and 'feats_a' in dir():
+if 'feats_h' in locals() and 'feats_a' in locals():
     print(f"temp_4_cv (timing variability)  → human: {feats_h['temp_4_cv']:.4f}  agent: {feats_a['temp_4_cv']:.4f}  (human should be HIGHER)")
     print(f"temp_5_fast_reaction_ratio      → human: {feats_h['temp_5_fast_reaction_ratio']:.4f}  agent: {feats_a['temp_5_fast_reaction_ratio']:.4f}  (agent should be HIGHER)")
     print(f"temp_7_hour_gini                → human: {feats_h['temp_7_hour_gini']:.4f}  agent: {feats_a['temp_7_hour_gini']:.4f}  (human should be HIGHER)")

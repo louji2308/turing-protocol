@@ -241,12 +241,11 @@ class TestParameterOptimizer:
         assert self.optimizer._params["timing_focus_mu"] == 1.1
         assert self.optimizer._params["bias_disposition_strength"] == 0.6
 
-    def test_mutation_changes_params(self):
-        mutated = self.optimizer._mutate()
-        diff_count = sum(
-            1 for k in mutated if mutated[k] != self.optimizer._params[k]
-        )
-        assert diff_count >= 1
+    def test_optimize_async_returns_evaluating_status(self):
+        result = asyncio.run(self.optimizer.optimize_async(current_hps=5000, target_hps=8000, direction=1))
+        assert result["status"] == "evaluating"
+        assert "trial_params" in result
+        assert result["direction"] == 1
 
     def test_param_space_bounds(self):
         for name, (lo, hi, default, _) in self.optimizer.PARAMETER_SPACE.items():

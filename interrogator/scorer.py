@@ -33,7 +33,7 @@ class WalletScorer:
         self.engineer = BehavioralFeatureEngineer()
         self.preprocessor = FeaturePreprocessor(models_dir)
         self.model = InterrogatorModel(models_dir)
-        self.model.load()
+        self._model_loaded = False
 
         self.dim_scorer = DimensionScorer()
 
@@ -41,6 +41,11 @@ class WalletScorer:
         # Expire cache entries after 15 minutes
         self._feature_cache: Dict[str, Tuple[dict, float]] = {}
         self._cache_ttl = 900  # 15 minutes
+
+    def _ensure_model_loaded(self):
+        if not self._model_loaded:
+            self.model.load()
+            self._model_loaded = True
 
     def score(
         self,
@@ -83,6 +88,7 @@ class WalletScorer:
             return self._insufficient_history_result(wallet_address)
 
         X = self.preprocessor.transform(features_dict)
+        self._ensure_model_loaded()
         ml_hps = self.model.score_wallet(X)
 
         final_hps, ml_weight, dim_weight, dim_scores = hybrid_hps(
@@ -115,6 +121,7 @@ class WalletScorer:
         # 3. Compute explanation only if requested (and only on first request)
         if return_explanation:
             logger.info(f"Computing SHAP explanation for {wallet_address[:10]}...")
+            self._ensure_model_loaded()
             result["explanation"] = self.model.explain_wallet(X)
             result["fingerprint"] = self.model.compute_behavior_fingerprint(X)
 
@@ -157,6 +164,8 @@ class WalletScorer:
         """
         Scores a list of wallets efficiently.
         Used by the oracle submission loop every 15 minutes.
+        Note: This is a synchronous method. If called from async code,
+        wrap in asyncio.to_thread() to avoid blocking the event loop.
         """
         results = []
         total = len(wallet_addresses)

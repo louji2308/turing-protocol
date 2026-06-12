@@ -46,7 +46,7 @@ describe("HPSOracle", function () {
 
     await expect(
       oracle.connect(attacker).batchUpdateScores([attacker.address], [5000], 100)
-    ).to.be.revertedWith("HPSOracle: caller is not the operator");
+    ).to.be.revertedWith("HPSOracle: caller is not an operator");
   });
 
   it("Should track new wallets correctly", async function () {

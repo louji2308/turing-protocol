@@ -15,7 +15,9 @@ DB_PATH = os.path.join(
 
 
 def _get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS scores ("
         "  wallet TEXT PRIMARY KEY,"
@@ -84,7 +86,7 @@ def get_cached_explanation(wallet: str) -> Optional[list]:
     try:
         conn = _get_conn()
         row = conn.execute(
-            "SELECT explanation, fingerprint FROM scores WHERE wallet=?",
+            "SELECT explanation FROM scores WHERE wallet=?",
             (wallet.lower(),),
         ).fetchone()
         conn.close()

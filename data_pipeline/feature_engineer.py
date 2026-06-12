@@ -596,7 +596,7 @@ class BehavioralFeatureEngineer:
         1 = perfectly concentrated (all activity in one hour)
         Human activity has Gini ~0.4-0.7 (peak hours but not exclusive)
         """
-        if len(values) == 0 or values.sum() == 0:
+        if len(values) < 2 or values.sum() == 0:
             return 0.0
         values = np.sort(values)
         n = len(values)

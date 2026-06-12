@@ -35,12 +35,12 @@ load_dotenv()
 logger.remove()
 logger.add(sys.stdout, format="<green>{time:HH:mm:ss}</green> | <level>{level:8s}</level> | <level>{message}</level>")
 
-SYNTHETIC_PATH = "interrogator/data/training_data.parquet"
-MODELS_DIR = "interrogator/models"
-CSV_PATH = "validation/wallets.csv"
-MAINNET_RPC = "https://rpc.mantle.xyz"
-TESTNET_RPC = "https://rpc.sepolia.mantle.xyz"
-GHOST_ADDR = "0xfdaE6B5f5A8802e47c48dEa56157406c5a54C700"
+SYNTHETIC_PATH = project_root / "interrogator" / "data" / "training_data.parquet"
+MODELS_DIR = str(project_root / "interrogator" / "models")
+CSV_PATH = str(project_root / "validation" / "wallets.csv")
+MAINNET_RPC = os.getenv("MANTLE_MAINNET_RPC", "https://rpc.mantle.xyz")
+TESTNET_RPC = os.getenv("MANTLE_TESTNET_RPC", "https://rpc.sepolia.mantle.xyz")
+GHOST_ADDR = os.getenv("GHOST_WALLET_ADDRESS", "0xfdaE6B5f5A8802e47c48dEa56157406c5a54C700")
 
 
 # ── 1. Load synthetic training data ────────────────────────────────

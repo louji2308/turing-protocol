@@ -13,11 +13,12 @@ Usage:
   2. Run: python scripts/fetch_real_wallets.py
   3. Train: python scripts/train_model.py
 """
-import sys; sys.path.insert(0, '.')
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import os
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
 from data_pipeline.mantle_fetcher import MantleDataFetcher

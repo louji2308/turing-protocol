@@ -3850,6 +3850,8 @@ contract ProofOfBehavior is ERC721 {
 
     uint256 public totalFreshProofs;
 
+    bool public paused;
+
     event ProofMinted(
         address indexed wallet,
         uint256 indexed tokenId,
@@ -3873,11 +3875,26 @@ contract ProofOfBehavior is ERC721 {
         uint32 timestamp
     );
 
+    event FreshnessCheckRequested(
+        address indexed wallet,
+        address indexed requester,
+        uint256 timestamp
+    );
+
+    event ContractPaused(address indexed triggeredBy);
+
+    event ContractUnpaused(address indexed triggeredBy);
+
     modifier onlyOracleService() {
         require(
             msg.sender == oracleService,
             "ProofOfBehavior: caller is not the oracle service"
         );
+        _;
+    }
+
+    modifier whenNotPaused() {
+        require(!paused, "ProofOfBehavior: contract is paused");
         _;
     }
 
@@ -3888,6 +3905,16 @@ contract ProofOfBehavior is ERC721 {
         require(_oracleService != address(0), "ProofOfBehavior: zero address");
         oracleService = _oracleService;
         freshnessThreshold = _freshnessThreshold;
+    }
+
+    function pause() external onlyOracleService {
+        paused = true;
+        emit ContractPaused(msg.sender);
+    }
+
+    function unpause() external onlyOracleService {
+        paused = false;
+        emit ContractUnpaused(msg.sender);
     }
 
     function _update(
@@ -3908,7 +3935,7 @@ contract ProofOfBehavior is ERC721 {
         uint16 score,
         bytes32 fingerprint,
         uint16 modelVersion
-    ) external onlyOracleService returns (uint256 tokenId) {
+    ) external onlyOracleService whenNotPaused returns (uint256 tokenId) {
         require(wallet != address(0), "ProofOfBehavior: zero address");
         require(
             walletToTokenId[wallet] == 0,
@@ -3951,7 +3978,7 @@ contract ProofOfBehavior is ERC721 {
     function updateFreshness(
         address wallet,
         uint16 newScore
-    ) external onlyOracleService {
+    ) external onlyOracleService whenNotPaused {
         uint256 tokenId = walletToTokenId[wallet];
         if (tokenId == 0) return;
 
@@ -3981,6 +4008,12 @@ contract ProofOfBehavior is ERC721 {
         );
     }
 
+    function requestFreshnessCheck(address wallet) external whenNotPaused {
+        uint256 tokenId = walletToTokenId[wallet];
+        require(tokenId != 0, "ProofOfBehavior: no proof for this wallet");
+        emit FreshnessCheckRequested(wallet, msg.sender, block.timestamp);
+    }
+
     function hasFreshProof(address wallet) external view returns (bool) {
         uint256 tokenId = walletToTokenId[wallet];
         if (tokenId == 0) return false;
@@ -3991,6 +4024,13 @@ contract ProofOfBehavior is ERC721 {
         address wallet
     ) external view returns (BehaviorProof memory) {
         uint256 tokenId = walletToTokenId[wallet];
+        return proofs[tokenId];
+    }
+
+    function getProofByTokenId(
+        uint256 tokenId
+    ) external view returns (BehaviorProof memory) {
+        require(_ownerOf(tokenId) != address(0), "ProofOfBehavior: token does not exist");
         return proofs[tokenId];
     }
 
@@ -4027,7 +4067,7 @@ contract ProofOfBehavior is ERC721 {
 
     function updateFreshnessThreshold(
         uint16 newThreshold
-    ) external onlyOracleService {
+    ) external onlyOracleService whenNotPaused {
         require(newThreshold <= 10000, "ProofOfBehavior: threshold > 10000");
         freshnessThreshold = newThreshold;
     }

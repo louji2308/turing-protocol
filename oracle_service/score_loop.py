@@ -14,6 +14,26 @@ from oracle_service.config import OracleConfig
 load_dotenv()
 
 
+def _create_web3_with_fallback(rpc_urls: List[str], timeout: int = 30) -> Web3:
+    primary = rpc_urls[0]
+    w3 = Web3(Web3.HTTPProvider(primary, request_kwargs={"timeout": timeout}))
+    w3._fallback_urls = rpc_urls[1:]
+    w3._current_fallback_idx = 0
+    return w3
+
+
+def _rotate_rpc(w3: Web3, rpc_urls: List[str]) -> Web3:
+    if not rpc_urls:
+        return w3
+    current = rpc_urls[0]
+    rotated = rpc_urls[1:] + [current]
+    new_w3 = Web3(Web3.HTTPProvider(rotated[0], request_kwargs={"timeout": 30}))
+    new_w3._fallback_urls = rotated[1:]
+    new_w3._current_fallback_idx = 0
+    logger.warning(f"RPC rotated: {current[:40]}... -> {rotated[0][:40]}...")
+    return new_w3
+
+
 class ScoreSubmissionLoop:
 
     def __init__(
@@ -25,6 +45,7 @@ class ScoreSubmissionLoop:
     ):
         self.scorer = scorer
         self.w3 = w3
+        self._rpc_urls = config.rpc_urls
         self.oracle_contract = oracle_contract
         self.config = config
 
@@ -41,11 +62,37 @@ class ScoreSubmissionLoop:
         self._update_history: List[dict] = []
         self._is_running = False
         self._consecutive_failures = 0
+        self._max_consecutive_failures = 10
         self._current_nonce: Optional[int] = None
+
+    async def _health_check(self) -> bool:
+        try:
+            paused = await asyncio.to_thread(
+                lambda: self.oracle_contract.functions.paused().call()
+            )
+            if paused:
+                logger.critical("HPSOracle contract is PAUSED — no submissions will be made")
+                return False
+            logger.info("Health check OK — contract is not paused")
+            return True
+        except AttributeError:
+            logger.warning("Contract has no paused() function (testnet deployment)")
+            return True
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return False
+
+    def _maybe_reconnect(self):
+        if not self.w3.is_connected():
+            logger.warning("Web3 disconnected. Rotating RPC...")
+            self.w3 = _rotate_rpc(self.w3, self._rpc_urls)
 
     async def run(self):
         self._is_running = True
         logger.info(f"ScoreSubmissionLoop started | interval={self.update_interval}s | operator={self.operator_address}")
+
+        if not await self._health_check():
+            logger.critical("Contract health check failed — entering safe mode (no submissions)")
 
         while self._is_running:
             try:
@@ -56,6 +103,10 @@ class ScoreSubmissionLoop:
                 self._consecutive_failures += 1
                 backoff = min(60 * self._consecutive_failures, 900)
                 logger.error(f"Score loop error (x{self._consecutive_failures}): {e}")
+                if self._consecutive_failures >= self._max_consecutive_failures:
+                    logger.critical(f"{self._consecutive_failures} consecutive failures. Entering safe mode.")
+                    self.w3 = _rotate_rpc(self.w3, self._rpc_urls)
+                    self._consecutive_failures = 0
                 await asyncio.sleep(backoff)
 
             await asyncio.sleep(self.update_interval)
@@ -66,6 +117,7 @@ class ScoreSubmissionLoop:
     async def _run_update_cycle(self):
         cycle_start = time.time()
         logger.info("Starting oracle update cycle...")
+        self._maybe_reconnect()
 
         active_wallets = await self._get_active_wallets()
         if not active_wallets:
@@ -105,6 +157,9 @@ class ScoreSubmissionLoop:
             f"{cycle_duration:.1f}s | {status}"
         )
 
+    async def get_active_wallets(self) -> List[str]:
+        return await self._get_active_wallets()
+
     async def _get_active_wallets(self) -> List[str]:
         active: set = set()
         try:
@@ -118,9 +173,10 @@ class ScoreSubmissionLoop:
             current_block = await asyncio.to_thread(
                 lambda: self.w3.eth.block_number
             )
+            from_block = max(0, current_block - 5000)
             events = await asyncio.to_thread(
                 lambda: self.oracle_contract.events.ScoreUpdated.get_logs(
-                    fromBlock=max(0, current_block - 5000),
+                    fromBlock=from_block,
                     toBlock="latest"
                 )
             )
@@ -192,6 +248,7 @@ class ScoreSubmissionLoop:
         scores: List[int]
     ) -> Optional[str]:
         def build_and_send() -> Optional[str]:
+            self._maybe_reconnect()
             if self._current_nonce is None:
                 self._current_nonce = self.w3.eth.get_transaction_count(
                     self.operator_address, "pending"
@@ -209,8 +266,11 @@ class ScoreSubmissionLoop:
                 "gas": 500000 + len(wallets) * 30000,
             })
 
-            estimated = self.w3.eth.estimate_gas(tx)
-            tx["gas"] = int(estimated * 1.2)
+            try:
+                estimated = self.w3.eth.estimate_gas(tx)
+                tx["gas"] = int(estimated * 1.2)
+            except Exception as e:
+                logger.debug(f"Gas estimation failed, using default: {e}")
 
             signed = self.w3.eth.account.sign_transaction(
                 tx, private_key=self.config.operator_private_key
@@ -235,10 +295,14 @@ class ScoreSubmissionLoop:
             tx_hash_hex = tx_hash.hex()
             self._current_nonce += 1
 
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            if receipt["status"] != 1:
-                logger.error(f"Transaction reverted: {tx_hash_hex}")
-                return None
+            try:
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                if receipt["status"] != 1:
+                    logger.error(f"Transaction reverted: {tx_hash_hex}")
+                    return None
+            except Exception as e:
+                logger.error(f"Receipt wait failed for {tx_hash_hex}: {e}")
+                return tx_hash_hex
 
             return tx_hash_hex
 

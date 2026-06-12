@@ -80,20 +80,18 @@ class FeaturePreprocessor:
     ) -> np.ndarray:
         """
         Transform inference input.
+        Returns scaled features, or zeros if scaler is unavailable.
         """
 
         scaler_path = self.save_dir / "scaler.joblib"
         names_path = self.save_dir / "feature_names.json"
 
-        if not scaler_path.exists():
-            raise FileNotFoundError(
-                f"Missing scaler: {scaler_path}"
-            )
-
-        if not names_path.exists():
-            raise FileNotFoundError(
-                f"Missing feature names: {names_path}"
-            )
+        if not scaler_path.exists() or not names_path.exists():
+            from loguru import logger
+            logger.warning("Scaler or feature names not found. Returning zero features.")
+            if isinstance(features, dict):
+                return np.zeros((1, len(features)), dtype=np.float64)
+            return np.zeros((len(features), len(features.columns)), dtype=np.float64)
 
         scaler = joblib.load(scaler_path)
 

@@ -1,5 +1,6 @@
 import sys
-sys.path.insert(0, '.')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from data_pipeline.mantle_fetcher import MantleDataFetcher
 from dotenv import load_dotenv

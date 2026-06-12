@@ -2,7 +2,8 @@
 """Deep-dive into the 2 false negatives: kristoph.eth & ihorkhyzhniak.eth"""
 
 import sys, json
-sys.path.insert(0, ".")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from interrogator.scorer import WalletScorer
 from data_pipeline.mantle_fetcher import MantleDataFetcher

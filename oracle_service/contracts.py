@@ -8,7 +8,10 @@ from loguru import logger
 from oracle_service.config import OracleConfig
 
 
-ABI_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard", "src", "abi")
+ABI_DIR = os.getenv(
+    "ABI_DIR",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard", "src", "abi"),
+)
 
 
 class ContractLoader:

@@ -1,5 +1,6 @@
+import math
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from loguru import logger
 
 
@@ -12,7 +13,7 @@ def _sigmoid(x: float, center: float, width: float) -> float:
 
 def _linear_clip(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max: float = 100.0) -> float:
     """Linear interpolation from (x_min → y_min) to (x_max → y_max), clipped."""
-    if x != x or x <= x_min:
+    if math.isnan(x) or math.isinf(x) or x <= x_min:
         return y_min
     if x >= x_max:
         return y_max
@@ -22,7 +23,7 @@ def _linear_clip(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max
 
 def _inverse_linear(x: float, x_min: float, x_max: float, y_min: float = 0.0, y_max: float = 100.0) -> float:
     """Like linear_clip but decreasing: (x_min → y_max) to (x_max → y_min)."""
-    if x != x or x <= x_min:
+    if math.isnan(x) or math.isinf(x) or x <= x_min:
         return y_max
     if x >= x_max:
         return y_min
@@ -309,15 +310,18 @@ class DimensionScorer:
         }
 
     @staticmethod
-    def _wallet_age_boost(features: Dict[str, float], block_time: float = 12.0) -> float:
+    def _wallet_age_boost(features: Dict[str, float], block_time: Optional[float] = None) -> float:
         """
         Returns a multiplier >1.0 for wallets older than 2 years.
         Boost grows with age: +5% per year after 2 years, capped at +30%.
-        block_time: seconds per block (12 for Ethereum, 2 for Mantle Sepolia).
+        block_time: seconds per block (default 2 for Mantle Sepolia).
         """
+        if block_time is None:
+            block_time = 2.0
         age_log = features.get("net_3_wallet_age_blocks_log", 0.0)
         if age_log <= 0:
             return 1.0
+        age_log = min(age_log, 700.0)
         age_blocks = np.expm1(age_log)
         age_days = age_blocks * block_time / 86400.0
         if age_days <= 730:
@@ -325,7 +329,7 @@ class DimensionScorer:
         boost = 1.0 + (age_days - 730) / 365.0 * 0.05
         return min(boost, 1.30)
 
-    def overall_score(self, features: Dict[str, float], block_time: float = 12.0) -> Tuple[float, Dict[str, float]]:
+    def overall_score(self, features: Dict[str, float], block_time: Optional[float] = None) -> Tuple[float, Dict[str, float]]:
         dims = self.score_all(features)
         total_weight = sum(self.WEIGHTS.get(k, 1.0) for k in dims)
         weighted_sum = sum(dims[k] * self.WEIGHTS.get(k, 1.0) for k in dims)
@@ -339,27 +343,61 @@ def hybrid_hps(
     ml_hps: int,
     features: Dict[str, float],
     dim_scorer: DimensionScorer = None,
-    block_time: float = 12.0,
+    block_time: Optional[float] = None,
 ) -> Tuple[int, float, float, Dict[str, float]]:
     """
-    Adaptive hybrid combining ML prediction with dimension-based scoring.
-    
+    90-Day Adversarial Shield Formula.
+
+    Non-linear combiner that penalises ML/Dim disagreement within the first
+    90 days (adversarial mimicry signature) and rewards wallets with >1 year
+    of proven history (temporal commitment bonus).  After 90 days the penalty
+    decays to zero regardless of disagreement.
+
     Returns:
         (final_hps, ml_weight, dim_weight, dimension_scores)
     """
     if dim_scorer is None:
         dim_scorer = DimensionScorer()
+    if block_time is None:
+        block_time = 2.0
 
     dim_avg, dim_scores = dim_scorer.overall_score(features, block_time)
     dim_hps = int(dim_avg * 100.0)
 
-    # Fixed 70/30 blend: trust ML_HPS more than Dim_HPS
-    # The ML model captures non-linear feature interactions; dimensions provide
-    # interpretable guardrails but are conservative on thin histories.
     weight_ml = 0.7
     weight_dim = 0.3
 
-    final = int(round(ml_hps * weight_ml + dim_hps * weight_dim))
+    # Step 1: Base 70/30 blend
+    h_base = ml_hps * weight_ml + dim_hps * weight_dim
+
+    # Compute wallet age in days from block-span feature
+    age_log = features.get("net_3_wallet_age_blocks_log", 0.0)
+    if age_log > 0:
+        age_log = min(age_log, 700.0)
+        age_blocks = np.expm1(age_log)
+        age_days = age_blocks * block_time / 86400.0
+    else:
+        age_days = 0.0
+
+    # Step 2: Adversarial Disagreement Penalty
+    # When ML >> Dim on a young wallet, the ML model is likely being
+    # fooled by adversarial mimicry while structural dimensions flag bot.
+    # Penalty decays linearly to zero at 90 days.
+    disagreement = max(0, ml_hps - dim_hps)
+    age_factor = max(0.0, 1.0 - age_days / 90.0)
+    p_disagree = disagreement * age_factor
+
+    # Step 3: Apply penalty
+    h_adj = h_base - p_disagree
+
+    # Step 4: Temporal Commitment Bonus
+    # Wallets with >1 year proven history get a bounded linear bonus
+    # (200 pts/year, capped at 600 for 4+ years)
+    years_over_one = max(0, (age_days - 365.0) / 365.0)
+    b_temporal = min(200.0 * years_over_one, 600.0)
+
+    # Step 5: Final score, clamped to [0, 10000]
+    final = int(round(h_adj + b_temporal))
     final = max(0, min(10000, final))
 
     return final, weight_ml, weight_dim, dim_scores

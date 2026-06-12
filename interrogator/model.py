@@ -74,11 +74,10 @@ class InterrogatorModel:
             reg_lambda=1.0,     # L2 regularization
             objective='binary:logistic',
             eval_metric='auc',
-            use_label_encoder=False,
             tree_method='hist',
             random_state=42,
             n_jobs=-1,          # Use all CPU cores
-            verbosity=1,
+            verbosity=0,
         )
 
     def train(
@@ -175,7 +174,7 @@ class InterrogatorModel:
         self,
         X: np.ndarray,
         return_uncertainty: bool = False,
-    ):
+    ) -> object:
         """
         Returns the Human Probability Score as an integer 0-10000.
         This is the exact value that gets written to the on-chain oracle.
@@ -269,8 +268,9 @@ class InterrogatorModel:
         # Quantize to integers (multiply by precision and round)
         quantized = (top_values * precision).astype(int)
 
-        # Create deterministic hash
-        fingerprint_input = "|".join(str(v) for v in sorted(quantized))
+        # Create deterministic hash with feature indices to preserve mapping
+        sorted_pairs = sorted(zip(top_indices, quantized), key=lambda x: x[0])
+        fingerprint_input = "|".join(f"{i}:{v}" for i, v in sorted_pairs)
         fingerprint = "0x" + hashlib.sha256(
             fingerprint_input.encode()
         ).hexdigest()

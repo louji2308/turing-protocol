@@ -3,7 +3,7 @@ from scipy import stats
 import time
 import asyncio
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict
 
 
 @dataclass
@@ -34,16 +34,30 @@ class TimingNoiseModule:
             state_entered_at=time.time()
         )
         self._reaction_history = []
+        self._overrides: Dict[str, float] = {}
+
+    def set_override(self, key: str, value: float):
+        self._overrides[key] = value
+
+    def clear_overrides(self):
+        self._overrides.clear()
+
+    def _get_param(self, name: str, default: float) -> float:
+        return self._overrides.get(name, default)
 
     def get_delay(self) -> float:
         self._maybe_transition_state()
         if self._state.is_focused:
             delay = self._sample_lognormal(
-                self.FOCUSED_MU, self.FOCUSED_SIGMA, max_val=self.FOCUSED_MAX
+                self._get_param("FOCUSED_MU", self.FOCUSED_MU),
+                self._get_param("FOCUSED_SIGMA", self.FOCUSED_SIGMA),
+                max_val=self.FOCUSED_MAX
             )
         else:
             delay = self._sample_lognormal(
-                self.DISTRACTED_MU, self.DISTRACTED_SIGMA, max_val=self.DISTRACTED_MAX
+                self._get_param("DISTRACTED_MU", self.DISTRACTED_MU),
+                self._get_param("DISTRACTED_SIGMA", self.DISTRACTED_SIGMA),
+                max_val=self.DISTRACTED_MAX
             )
         self._reaction_history.append({
             "delay": delay,
@@ -63,11 +77,11 @@ class TimingNoiseModule:
 
     def _maybe_transition_state(self):
         if self._state.is_focused:
-            if self.rng.random() < self.P_FOCUS_TO_DISTRACT:
+            if self.rng.random() < self._get_param("P_FOCUS_TO_DISTRACT", self.P_FOCUS_TO_DISTRACT):
                 self._state.is_focused = False
                 self._state.state_entered_at = time.time()
         else:
-            if self.rng.random() < self.P_DISTRACT_TO_FOCUS:
+            if self.rng.random() < self._get_param("P_DISTRACT_TO_FOCUS", self.P_DISTRACT_TO_FOCUS):
                 self._state.is_focused = True
                 self._state.state_entered_at = time.time()
 

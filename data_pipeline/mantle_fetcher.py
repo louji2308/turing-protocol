@@ -1,6 +1,5 @@
 """
-Fixed MantleDataFetcher with RPC fallback when explorer API is unavailable.
-Replace your data_pipeline/mantle_fetcher.py with this content.
+MantleDataFetcher with RPC fallback when explorer API is unavailable.
 """
 
 from web3 import Web3
@@ -10,6 +9,7 @@ from typing import List, Dict, Optional
 from loguru import logger
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 import os
 
@@ -296,39 +296,48 @@ class MantleDataFetcher:
     def _fetch_via_rpc(self, wallet_address: str, max_txs: int) -> List[Dict]:
         """
         Scans recent blocks looking for transactions from/to wallet_address.
-        Slower than explorer API but works without a block explorer.
-
-        Scans up to `scan_depth` blocks back from current head.
-        For testnet wallets this is usually sufficient.
+        Uses concurrent block fetching for speed.
         """
-        logger.info("Using RPC block-scan fallback (this may take ~30s)...")
+        logger.info("Using RPC block-scan fallback (this may take ~15s)...")
 
         wallet_lower = wallet_address.lower()
         txs = []
         latest = self.w3.eth.block_number
-        scan_depth = min(5000, latest)  # Don't scan more than 5000 blocks
+        scan_depth = min(5000, latest)
 
         logger.info(
             f"Scanning blocks {latest - scan_depth} → {latest} "
             f"(depth={scan_depth})"
         )
 
-        for block_num in range(latest, latest - scan_depth, -1):
-            if len(txs) >= max_txs:
-                break
+        block_numbers = list(range(latest, latest - scan_depth, -1))
+
+        def fetch_block(bn):
             try:
-                block = self.w3.eth.get_block(block_num, full_transactions=True)
+                block = self.w3.eth.get_block(bn, full_transactions=True)
+                return block
+            except Exception:
+                return None
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(fetch_block, bn): bn for bn in block_numbers}
+            for future in as_completed(futures):
+                if len(txs) >= max_txs:
+                    break
+                block = future.result()
+                if block is None:
+                    continue
                 for tx in block.transactions:
                     frm = (tx.get("from") or "").lower()
                     to  = (tx.get("to")   or "").lower()
                     if frm == wallet_lower or to == wallet_lower:
-                        receipt = self.w3.eth.get_transaction_receipt(tx.hash)
-                        txs.append(self._rpc_tx_to_dict(tx, block, receipt))
+                        try:
+                            receipt = self.w3.eth.get_transaction_receipt(tx.hash)
+                            txs.append(self._rpc_tx_to_dict(tx, block, receipt))
+                        except Exception:
+                            txs.append(self._rpc_tx_to_dict(tx, block, None))
                         if len(txs) >= max_txs:
                             break
-            except Exception as e:
-                logger.debug(f"Block {block_num} scan error: {e}")
-                continue
 
         logger.info(f"RPC scan found {len(txs)} transactions")
         return txs

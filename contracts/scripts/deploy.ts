@@ -99,9 +99,44 @@ async function main() {
   console.log(`HPSOracle:        ${oracleAddress}`);
   console.log(`ProofOfBehavior:  ${pobAddress}`);
   console.log(`TuringLib:        ${libAddress}`);
+  // ── 5. Configure multi-operator support ──────────
+  const operatorsEnv = process.env.OPERATOR_ADDRESSES || "";
+  if (operatorsEnv) {
+    const operators = operatorsEnv.split(",").map(a => a.trim()).filter(a => a.startsWith("0x"));
+    if (operators.length > 0) {
+      console.log(`\nAdding ${operators.length} operator(s) to HPSOracle...`);
+      for (const op of operators) {
+        if (op.toLowerCase() === deployer.address.toLowerCase()) continue;
+        const tx = await hpsOracle.addOperator(op);
+        await tx.wait();
+        console.log(`  ➕ Operator added: ${op}`);
+      }
+    }
+  }
+
+  // ── 6. Set score rate limit ──────────────────────
+  const maxChange = parseInt(process.env.MAX_SCORE_CHANGE || "2500", 10);
+  if (maxChange > 0) {
+    const tx = await hpsOracle.setMaxScoreChange(maxChange);
+    await tx.wait();
+    console.log(`\n📊 Max score change set to ${maxChange}`);
+  }
+
+  console.log(`\n${"=".repeat(50)}`);
+  console.log(`DEPLOYMENT COMPLETE`);
+  console.log(`${"=".repeat(50)}`);
+  console.log(`HPSOracle:        ${oracleAddress}`);
+  console.log(`ProofOfBehavior:  ${pobAddress}`);
+  console.log(`TuringLib:        ${libAddress}`);
+
+  if (operatorsEnv) {
+    const ops = operatorsEnv.split(",").filter(a => a.trim().startsWith("0x"));
+    console.log(`Operators:        ${ops.length + 1} (incl. deployer)`);
+  }
+  console.log(`MaxScoreChange:   ${maxChange}`);
   console.log(`\nNext steps:`);
   console.log(`1. Verify contracts on Mantle Explorer`);
-  console.log(`2. Proceed to Phase 4: Ghost Agent`);
+  console.log(`2. Set OPERATOR_PRIVATE_KEYS in .env for each operator`);
 }
 
 main().catch((error) => {

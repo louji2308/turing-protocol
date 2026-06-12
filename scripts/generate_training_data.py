@@ -1,9 +1,9 @@
 import sys
-sys.path.insert(0, '.')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from loguru import logger
 from data_pipeline.feature_engineer import BehavioralFeatureEngineer
 

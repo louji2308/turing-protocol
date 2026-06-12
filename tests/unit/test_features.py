@@ -4,9 +4,8 @@ import pytest
 from data_pipeline.feature_engineer import BehavioralFeatureEngineer
 
 
-def make_bot_df(n=100):
+def make_bot_df(n=100, seed=42):
     """Synthetic dataframe mimicking agent-like trading behavior."""
-    np.random.seed(42)
     base_ts = 1700000000
     half = max(1, n // 2)
     to_addrs = ["0xcontract_a"] * half + ["0xcontract_b"] * (n - half)
@@ -30,9 +29,9 @@ def make_bot_df(n=100):
     })
 
 
-def make_human_df(n=100):
+def make_human_df(n=100, seed=42):
     """Synthetic dataframe mimicking human-like trading behavior."""
-    np.random.seed(42)
+    rng = np.random.default_rng(seed)
     base_ts = 1700000000
 
     humans = [
@@ -50,7 +49,7 @@ def make_human_df(n=100):
         "0xdeadbeef", "0x11112222", "0x33334444",
     ]
 
-    deltas = np.random.exponential(scale=300, size=n).clip(1, 86400)
+    deltas = rng.exponential(scale=300, size=n).clip(1, 86400)
     timestamps = [base_ts + int(deltas[:i+1].sum()) for i in range(n)]
     time_since = [60.0] + [timestamps[i] - timestamps[i-1] for i in range(1, n)]
 
@@ -63,29 +62,29 @@ def make_human_df(n=100):
     hour_probs[20] = 0.06
     s = sum(hour_probs)
     hour_probs = [p / s for p in hour_probs]
-    hours = np.random.choice(range(24), size=n, p=hour_probs).tolist()
+    hours = rng.choice(range(24), size=n, p=hour_probs).tolist()
 
     return pd.DataFrame({
-        "from_addr": [np.random.choice(humans) for _ in range(n)],
-        "to_addr": [np.random.choice(
+        "from_addr": [rng.choice(humans) for _ in range(n)],
+        "to_addr": [rng.choice(
             ["0xcontract_a", "0xcontract_b", "0xcontract_c",
              "0xcontract_d", "0xuser_eoa"],
             p=[0.3, 0.3, 0.2, 0.1, 0.1]
         ) for _ in range(n)],
         "is_sender": [True] * n,
-        "value_mnt": np.random.lognormal(mean=-1, sigma=1, size=n).clip(0.001, 100),
-        "gas_price": np.random.lognormal(mean=3.9, sigma=0.3, size=n) * 1e9,
-        "gas_efficiency": np.random.beta(a=5, b=1.5, size=n).clip(0.1, 1.0),
+        "value_mnt": rng.lognormal(mean=-1, sigma=1, size=n).clip(0.001, 100),
+        "gas_price": rng.lognormal(mean=3.9, sigma=0.3, size=n) * 1e9,
+        "gas_efficiency": rng.beta(a=5, b=1.5, size=n).clip(0.1, 1.0),
         "timestamp": timestamps,
         "block_number": [1000 + i for i in range(n)],
         "time_since_prev_tx": time_since,
         "hour_of_day": hours,
-        "day_of_week": np.random.choice(range(7), size=n).tolist(),
-        "protocol": [np.random.choice(protocols) for _ in range(n)],
-        "is_known_protocol": [np.random.random() > 0.2 for _ in range(n)],
-        "method_id": [np.random.choice(method_ids) for _ in range(n)],
-        "failed": np.random.binomial(1, 0.05, size=n).tolist(),
-        "is_contract_call": [np.random.random() > 0.15 for _ in range(n)],
+        "day_of_week": rng.choice(range(7), size=n).tolist(),
+        "protocol": [rng.choice(protocols) for _ in range(n)],
+        "is_known_protocol": [rng.random() > 0.2 for _ in range(n)],
+        "method_id": [rng.choice(method_ids) for _ in range(n)],
+        "failed": rng.binomial(1, 0.05, size=n).tolist(),
+        "is_contract_call": [rng.random() > 0.15 for _ in range(n)],
     })
 
 
