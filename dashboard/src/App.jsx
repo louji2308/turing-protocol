@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import GhostPanel from './components/GhostPanel';
 import InterrogatorPanel from './components/InterrogatorPanel';
 import ProofLeaderboard from './components/ProofLeaderboard';
+import RealclawTrustPanel from './components/RealclawTrustPanel';
 import { useOracleEvents } from './hooks/useOracleEvents';
 import { useGhostTelemetry } from './hooks/useGhostTelemetry';
 import { useScoreHistory } from './hooks/useScoreHistory';
+import { useRealclawTrust } from './hooks/useRealclawTrust';
 import { ExternalLink, Github, Activity } from 'lucide-react';
 
 const GHOST_ADDRESS = import.meta.env.VITE_GHOST_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -31,6 +33,8 @@ export default function App() {
     ghostStatus,
     apiAvailable,
   } = useGhostTelemetry(GHOST_ADDRESS);
+
+  const trust = useRealclawTrust(GHOST_ADDRESS);
 
   const { history: persistedHistory, addPoint } = useScoreHistory(GHOST_ADDRESS);
 
@@ -63,8 +67,7 @@ export default function App() {
       gap: 'var(--space-4)',
       background: 'var(--bg-void)',
       boxSizing: 'border-box',
-      opacity: isLoaded ? 1 : 0,
-      transition: 'opacity 300ms ease',
+      opacity: 1,
     }}>
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -162,7 +165,7 @@ export default function App() {
 
       <main style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1.6fr 1fr',
+        gridTemplateColumns: '1fr 1.2fr 0.9fr 0.9fr',
         gap: 'var(--space-4)',
         minHeight: 0,
         overflow: 'hidden',
@@ -181,6 +184,11 @@ export default function App() {
           lastUpdateTime={lastUpdateTime}
           modelVersion={modelVersion}
           connectionStatus={connectionStatus}
+        />
+
+        <RealclawTrustPanel
+          ghostAddress={GHOST_ADDRESS}
+          trust={trust}
         />
 
         <ProofLeaderboard

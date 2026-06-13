@@ -201,7 +201,7 @@ class ScoreSubmissionLoop:
                         self.scorer.score, addr, True
                     )
                     error = result.get("error")
-                    if error and error == "insufficient_history":
+                    if error and error == "insufficient transaction history":
                         return
                     scores[addr] = int(result["hps"])
                 except Exception as e:

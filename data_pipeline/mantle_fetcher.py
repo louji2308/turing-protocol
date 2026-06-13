@@ -209,7 +209,7 @@ class MantleDataFetcher:
                 resp = requests.get(
                     api_url,
                     params=params,
-                    timeout=15,
+                    timeout=5,
                     headers={"User-Agent": "Mozilla/5.0 TuringProtocol/1.0"},
                 )
                 if resp.status_code != 200:
@@ -258,7 +258,7 @@ class MantleDataFetcher:
             try:
                 resp = requests.get(
                     url,
-                    timeout=15,
+                    timeout=5,
                     headers={"User-Agent": "Mozilla/5.0 TuringProtocol/1.0"},
                 )
                 if resp.status_code != 200:
@@ -303,7 +303,7 @@ class MantleDataFetcher:
         wallet_lower = wallet_address.lower()
         txs = []
         latest = self.w3.eth.block_number
-        scan_depth = min(5000, latest)
+        scan_depth = min(1000, latest)
 
         logger.info(
             f"Scanning blocks {latest - scan_depth} → {latest} "

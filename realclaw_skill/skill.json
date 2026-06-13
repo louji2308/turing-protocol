@@ -1,0 +1,26 @@
+{
+  "name": "turing-trust",
+  "version": "1.0.0",
+  "description": "Behavioral proof-of-humanity trust gate for Mantle wallets (HPSOracle/TuringLib).",
+  "entrypoint": "realclaw_skill.cli:cli",
+  "commands": {
+    "check": {
+      "args": ["address"],
+      "options": ["threshold", "tier", "require_fresh_proof", "explain", "enrich", "wait_for_score"],
+      "returns": "TrustDecision"
+    },
+    "handshake": {
+      "args": [],
+      "options": ["me", "counterparty", "tier", "threshold"],
+      "returns": "HandshakeResult"
+    },
+    "self-audit": {
+      "args": [],
+      "options": ["addresses_file"],
+      "returns": "FleetAuditResult"
+    }
+  },
+  "network_requirements": ["mantle-sepolia-rpc"],
+  "read_only": true,
+  "custodial": false
+}

@@ -211,7 +211,7 @@ class WalletScorer:
             "hps": 5000,  # Uncertain
             "probability": 0.5,
             "confidence": "low",
-            "error": "insufficient_history",
+            "error": "insufficient transaction history",
             "computed_at": int(time.time()),
         }
 

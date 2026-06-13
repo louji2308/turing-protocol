@@ -12,9 +12,10 @@ _data_pipeline = str(_project_root / "data_pipeline")
 if _data_pipeline not in sys.path:
     sys.path.insert(0, _data_pipeline)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from web3 import Web3
 from loguru import logger
@@ -34,21 +35,22 @@ config = OracleConfig()
 config_errors = OracleConfig.validate(config)
 if config_errors:
     logger.warning(f"Oracle config incomplete: {config_errors}")
-    if not config.rpc_url:
+    if not config.rpc_urls:
         logger.error("RPC URL is required. Exiting.")
         sys.exit(1)
 
-w3 = Web3(Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 30}))
+rpc_url = config.rpc_urls[0]
+w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
 if not w3.is_connected():
-    logger.error(f"Cannot connect to {config.rpc_url}")
+    logger.error(f"Cannot connect to {rpc_url}")
     sys.exit(1)
-logger.success(f"Connected to chain {config.chain_id} via {config.rpc_url}")
+logger.success(f"Connected to chain {config.chain_id} via {rpc_url}")
 
 
 def _ensure_connected():
     if not w3.is_connected():
         logger.warning("RPC disconnected. Reconnecting...")
-        w3.provider = Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 30})
+        w3.provider = Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30})
         if not w3.is_connected():
             logger.error("Failed to reconnect to RPC")
             return False
@@ -68,6 +70,16 @@ interrogator = None
 score_loop: Optional[ScoreSubmissionLoop] = None
 pob_checker: Optional[POBEligibilityChecker] = None
 retrainer: Optional[AdversarialRetrainer] = None
+
+security_scheme = HTTPBearer(auto_error=False)
+
+
+def require_admin_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)):
+    api_key = config.admin_api_key
+    if not api_key:
+        return
+    if credentials is None or credentials.credentials != api_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing admin API key")
 
 
 class ScoreResponse(BaseModel):
@@ -112,7 +124,7 @@ async def lifespan(app: FastAPI):
     try:
         from mantle_fetcher import MantleDataFetcher
         if scorer is not None:
-            fetcher = MantleDataFetcher(config.rpc_url)
+            fetcher = MantleDataFetcher(rpc_url)
             scorer.set_fetcher(fetcher)
             logger.success("MantleDataFetcher attached to scorer")
     except Exception as e:
@@ -225,7 +237,7 @@ async def stats():
 
 
 @app.get("/score/{wallet}", response_model=ScoreResponse)
-async def score_wallet(wallet: str):
+async def score_wallet(wallet: str, include_explanation: bool = False):
     if not Web3.is_address(wallet):
         raise HTTPException(status_code=400, detail=f"Invalid address: {wallet}")
     if scorer is None:
@@ -233,15 +245,19 @@ async def score_wallet(wallet: str):
 
     try:
         result = await asyncio.to_thread(
-            lambda: scorer.score(wallet, use_cache=True, return_explanation=True)
+            lambda: scorer.score(wallet, use_cache=True, return_explanation=include_explanation)
         )
+        err = result.get("error")
+        if err:
+            raise HTTPException(status_code=400, detail=err)
         return ScoreResponse(
             wallet=Web3.to_checksum_address(wallet),
             hps=int(result.get("hps", 0)),
-            error=result.get("error"),
             details=result.get("raw"),
             explanation=result.get("explanation"),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -288,7 +304,7 @@ async def ghost_telemetry():
 
 
 @app.post("/admin/retrain")
-async def trigger_retrain():
+async def trigger_retrain(_=Depends(require_admin_auth)):
     if retrainer is None:
         raise HTTPException(status_code=503, detail="Retrainer not available")
     if retrainer._is_retraining:
@@ -312,14 +328,14 @@ async def trigger_retrain():
 
 
 @app.get("/admin/score-loop/status")
-async def score_loop_status():
+async def score_loop_status(_=Depends(require_admin_auth)):
     if score_loop is None:
         raise HTTPException(status_code=503, detail="Score loop not running")
     return score_loop.get_stats()
 
 
 @app.post("/admin/score-loop/trigger")
-async def trigger_immediate_update():
+async def trigger_immediate_update(_=Depends(require_admin_auth)):
     if score_loop is None:
         raise HTTPException(status_code=503, detail="Score loop not running")
     asyncio.create_task(score_loop._run_update_cycle())

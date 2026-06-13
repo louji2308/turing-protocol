@@ -48,6 +48,7 @@ class OracleConfig:
 
     max_rpc_retries: int = field(default_factory=lambda: int(os.getenv("MAX_RPC_RETRIES", "3")))
     rpc_retry_delay: int = field(default_factory=lambda: int(os.getenv("RPC_RETRY_DELAY_SECONDS", "5")))
+    admin_api_key: str = field(default_factory=lambda: os.getenv("ADMIN_API_KEY", ""))
 
     def get_operator_addresses(self) -> List[str]:
         from eth_account import Account

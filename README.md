@@ -1,5 +1,9 @@
+> **Track: AI Alpha & Data (Mirana Ventures) — Path A: Data & Analytics**
+
 # TURING PROTOCOL
 ### On-Chain Behavioral Proof of Humanity for the Mantle Network
+
+Turing Protocol is a self-improving, on-chain AI oracle that scores any Mantle wallet 0–10,000 on its probability of being human, giving any Mantle contract a three-line Sybil-resistance check backed by a continuously-adapting adversarial ML loop.
 
 > *"Can a machine prove it is not a machine?"*
 > — The question at the heart of every Sybil-resistant system ever built.
@@ -731,8 +735,8 @@ GET  /score/{wallet}  — Score any wallet on-demand with optional SHAP explanat
 GET  /leaderboard     — Top wallets by HPS with freshness status
 GET  /stats           — Total scored wallets, fresh proofs, model version
 GET  /ghost/telemetry — Ghost agent runtime statistics
-POST /admin/retrain   — Manually trigger adversarial retraining
-POST /admin/score-loop/trigger — Force immediate oracle update cycle
+POST /admin/retrain   — Manually trigger adversarial retraining 🔒
+POST /admin/score-loop/trigger — Force immediate oracle update cycle 🔒
 ```
 
 ---
@@ -889,11 +893,11 @@ See [`validation/VALIDATION.md`](validation/VALIDATION.md) for full methodology,
 
 All contracts are deployed and verified on **Mantle Sepolia Testnet** (Chain ID: 5003).
 
-| Contract | Address |
-|----------|---------|
-| **HPSOracle** | [`0x824e72507C94E2A615400049167a661469351A1D`](https://explorer.testnet.mantle.xyz/address/0x824e72507C94E2A615400049167a661469351A1D) |
-| **ProofOfBehavior** | [`0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029`](https://explorer.testnet.mantle.xyz/address/0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029) |
-| **TuringLib** | [`0x3252fbd6b418511E20fda56c5631cD0D492Df390`](https://explorer.testnet.mantle.xyz/address/0x3252fbd6b418511E20fda56c5631cD0D492Df390) |
+| Contract | Address | Status |
+|----------|---------|--------|
+| **HPSOracle** | [`0x824e72507C94E2A615400049167a661469351A1D`](https://explorer.testnet.mantle.xyz/address/0x824e72507C94E2A615400049167a661469351A1D#code) | ✅ Verified |
+| **ProofOfBehavior** | [`0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029`](https://explorer.testnet.mantle.xyz/address/0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029#code) | ✅ Verified |
+| **TuringLib** | [`0x3252fbd6b418511E20fda56c5631cD0D492Df390`](https://explorer.testnet.mantle.xyz/address/0x3252fbd6b418511E20fda56c5631cD0D492Df390#code) | ✅ Verified |
 
 **Mantle Sepolia RPC**: `https://rpc.sepolia.mantle.xyz`
 **Chain ID**: 5003
@@ -1396,6 +1400,36 @@ The 47-feature computation operates on a pandas DataFrame of up to 150 transacti
 
 ---
 
+## Security
+
+### API Authentication
+
+All `/admin/*` REST endpoints are protected by bearer-token authentication. Requests must include an `Authorization: Bearer <token>` header with the token matching the `ADMIN_API_KEY` environment variable.
+
+| Endpoint | Auth Required |
+|----------|---------------|
+| `POST /admin/retrain` | ✅ Bearer token |
+| `GET /admin/score-loop/status` | ✅ Bearer token |
+| `POST /admin/score-loop/trigger` | ✅ Bearer token |
+
+If `ADMIN_API_KEY` is unset (empty), authentication is **disabled** — this is useful for local development but must be configured in production. The Render deployment reads `ADMIN_API_KEY` from the dashboard's secret environment variables (`sync: false` in `render.yaml`).
+
+This prevents unauthorised actors from triggering retraining cycles (computational cost, instability) or force-triggering score updates on the publicly-deployed oracle service.
+
+### On-Chain Access Control
+
+All smart contracts enforce access control natively:
+
+- **`HPSOracle`**: Only the operator or a multi-sig quorum can submit score updates. Score changes are rate-limited to `maxScoreChange` per wallet per 24h.
+- **`ProofOfBehavior`**: Only the HPSOracle contract can mint or update fresh-proof NFTs. Token transfers are permanently disabled (soulbound).
+- **`TuringLib`**: Read-only library — no access control needed.
+
+### Private Key Management
+
+The operator private key (`OPERATOR_PRIVATE_KEY`) is never hardcoded, logged, or exposed in any response. It is loaded from an environment variable (`render.yaml` marks it `sync: false`, meaning it is injected via the Render dashboard and never written to disk as part of the deployment). The same applies to `ADMIN_API_KEY`, `GHOST_PRIVATE_KEY`, and `ETHERSCAN_API_KEY`.
+
+---
+
 ## Why This Matters
 
 **For DeFi protocols**: The ability to ask `isHuman(wallet, 7000)` on-chain — with a score that is continuously updated and SHAP-explained — enables a new class of Sybil-resistant applications. Airdrop contracts can weight distributions by humanity score. Liquidity pools can offer reduced fees to verified humans. Governance systems can weight votes by P(human).
@@ -1430,3 +1464,57 @@ MIT License — see [`LICENSE`](LICENSE) for details.
 *Built for the Mantle Network.*
 
 *"Any sufficiently advanced bot is indistinguishable from a human — until you look at how it pays for gas."*
+
+---
+
+## RealClaw Integration — Turing Trust Layer Skill
+
+Turing Protocol exposes a **RealClaw-compatible Skill** (`realclaw_skill/`) that wraps the HPSOracle / TuringLib into a decision primitive any autonomous agent can call. Three integration surfaces:
+
+### CLI (console_scripts: `turing-trust`)
+
+```bash
+# Check if a counterparty wallet is human-operated
+turing-trust check 0xE0E216283eef00895b6ABAa73848448596B85724 --tier standard --explain
+
+# Mutual trust handshake before a trade (min HPS of both sides)
+turing-trust handshake --me 0xAGENT... --counterparty 0xPEER... --tier standard
+
+# Self-audit your agent fleet for Sybil-like signatures
+turing-trust self-audit --addresses-file fleet.txt
+```
+
+Exit codes: `0` = proceed (trusted), `1` = reject, `2` = insufficient_data, `3` = error.
+
+### HTTP Micro-Skill
+
+```bash
+curl -X POST http://localhost:8081/skill/check_wallet_trust \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0xE0E2...", "tier": "standard", "explain": true}'
+```
+
+Auto-discovery: `GET /skill/manifest` returns OpenAPI-style endpoint schema.
+
+### On-Chain Direct (Zero Off-Chain Dependency)
+
+```solidity
+import "./TuringLib.sol";
+
+function safeSwap(address counterparty) external {
+    TuringLib.requireHuman(HPS_ORACLE, counterparty, 7000, "Untrusted");
+    // ... proceed with swap
+}
+```
+
+See `contracts/examples/RealClawSafeSwap.sol` for a complete mutual-handshake example.
+
+### Trust Tiers
+
+| Tier | HPS Floor | Use Case |
+|------|-----------|----------|
+| `lenient` | 3000 | Low-stakes reads, dust transfers |
+| `standard` | 7000 | Default — most swaps, governance |
+| `strict` | 8000 | Large trades, treasury operations |
+
+See `realclaw_skill/SKILL.md` and `realclaw_skill/skill.json` for the full skill manifests.

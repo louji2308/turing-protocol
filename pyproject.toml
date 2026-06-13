@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turing-protocol"
+version = "1.0.0"
+description = "On-Chain Behavioral Proof of Humanity for the Mantle Network"
+requires-python = ">=3.11"
+
+[project.scripts]
+turing-trust = "realclaw_skill.cli:cli"
+
+[tool.setuptools.packages.find]
+include = [
+    "realclaw_skill*",
+    "oracle_service*",
+    "data_pipeline*",
+    "interrogator*",
+    "ghost_agent*",
+    "scorers*",
+    "scripts*",
+    "validation*",
+]

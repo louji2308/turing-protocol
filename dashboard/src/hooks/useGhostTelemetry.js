@@ -16,7 +16,7 @@ export function useGhostTelemetry(ghostAddress) {
     try {
       const resp = await fetch(
         `${apiBase}/score/${ghostAddress}?include_explanation=true`,
-        { signal: AbortSignal.timeout(30000) }
+        { signal: AbortSignal.timeout(45000) }
       );
 
       if (resp.ok) {
