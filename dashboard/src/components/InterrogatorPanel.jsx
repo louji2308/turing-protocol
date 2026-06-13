@@ -3,6 +3,23 @@ import ScoreGauge from './ScoreGauge';
 import ScoreChart from './ScoreChart';
 import FeatureWaterfall from './FeatureWaterfall';
 
+function Skeleton() {
+  return (
+    <div className="panel" style={{ animation: 'fade-in-up 400ms 100ms var(--ease-out) both' }}>
+      <div className="panel-header">
+        <div className="panel-title">THE INTERROGATOR</div>
+        <div className="panel-subtitle">Loading classifier...</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 24 }}>
+        <div style={{ width: 200, height: 200, borderRadius: '50%', background: 'var(--surface-01)', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+        {[1, 2, 3].map((i) => (
+          <div key={i} style={{ height: 20, width: `${60 + i * 10}%`, background: 'var(--surface-01)', borderRadius: 'var(--radius-sm)', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function InterrogatorPanel({
   ghostScore = 5000,
   previousScore = 5000,
@@ -11,6 +28,7 @@ export default function InterrogatorPanel({
   lastUpdateTime = null,
   modelVersion = null,
   connectionStatus = 'connecting',
+  loading = false,
 }) {
   const [activeTab, setActiveTab] = useState('waterfall');
   const [nextUpdateCountdown, setNextUpdateCountdown] = useState(null);
@@ -63,6 +81,10 @@ export default function InterrogatorPanel({
   };
 
   const connBadge = getConnectionBadge();
+
+  if (loading) {
+    return <Skeleton />;
+  }
 
   return (
     <div className="panel" style={{ animation: 'fade-in-up 400ms 100ms var(--ease-out) both' }}>

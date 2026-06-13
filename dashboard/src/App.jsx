@@ -61,7 +61,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const api = import.meta.env.VITE_API_URL || 'https://turing-oracle.onrender.com';
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:8080';
     fetch(`${api}/api/v1/intelligence/sybil-clusters`)
       .then((r) => r.ok ? r.json() : Promise.resolve({}))
       .then((data) => setSybilClusters(data?.clusters ?? {}))

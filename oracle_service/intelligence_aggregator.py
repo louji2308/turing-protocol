@@ -26,7 +26,7 @@ class IntelligenceAggregator:
         asyncio.create_task(self._loop(self.recompute_smart_money, self.config.smart_money_cycle_seconds))
 
     async def _loop(self, fn, interval: int) -> None:
-        await asyncio.sleep(30)
+        await asyncio.sleep(1)
         while True:
             try:
                 await fn()

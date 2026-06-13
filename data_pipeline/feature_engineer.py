@@ -283,10 +283,9 @@ class BehavioralFeatureEngineer:
             # Gas price percentile variance across time
             # Agents consistently use median gas; humans vary more
             "gas_3_percentile_variance": float(
-                np.std([
-                    stats.percentileofscore(gas_in_gwei, g)
-                    for g in gas_in_gwei
-                ])
+                np.std(
+                    stats.rankdata(gas_in_gwei) / len(gas_in_gwei) * 100
+                )
             ),
 
             # Proportion of transactions that overpaid by >50%

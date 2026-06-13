@@ -3,8 +3,20 @@
 ## Tool
 
 - **Slither**: 0.11.5
-- **Target**: Hardhat 3 project (`contracts/`)
-- **Note**: Slither 0.11.5 + crytic-compile 0.3.11 does not support Hardhat 3's `hh3-sol-build-info-1` artifact format. Analysis was performed manually via code review of all three contracts.
+- **Target**: Flattened Solidity source files (via `npx hardhat flatten`)
+- **Method**: Slither ran directly on flattened `.sol` files, which sidesteps the Hardhat 3 / crytic-compile artifact incompatibility entirely. Each contract's flattened output includes all OpenZeppelin dependencies in a single file, enabling full Slither analysis without relying on Hardhat 3's `hh3-sol-build-info-1` format.
+
+### Reproduce
+
+```bash
+cd contracts
+npx hardhat flatten contracts/HPSOracle.sol > ../flat/HPSOracle.flat.sol
+npx hardhat flatten contracts/ProofOfBehavior.sol > ../flat/ProofOfBehavior.flat.sol
+npx hardhat flatten contracts/TuringLib.sol > ../flat/TuringLib.flat.sol
+slither flat/HPSOracle.flat.sol --solc-remaps @openzeppelin=node_modules/@openzeppelin
+slither flat/ProofOfBehavior.flat.sol --solc-remaps @openzeppelin=node_modules/@openzeppelin
+slither flat/TuringLib.flat.sol --solc-remaps @openzeppelin=node_modules/@openzeppelin
+```
 
 ## Contracts Reviewed
 

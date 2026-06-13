@@ -4,7 +4,7 @@ Retrain the XGBoost model with real wallet data merged into synthetic training s
 Then re-score ghost agent and re-run validation.
 
 Pipeline:
-  1. Load 300 synthetic wallets (interrogator/data/training_data.parquet)
+   1. Load 5000 synthetic wallets (interrogator/data/training_data.parquet)
   2. For each scorable real wallet in validation/wallets.csv:
        fetch txs → compute 47 features → append to dataset
   3. Retrain model from scratch (saves to interrogator/models/)
@@ -234,7 +234,7 @@ def main():
             logger.info(f"{k:>20s} {bv:>10.4f} {'N/A':>10s}")
 
     logger.info(f"\nTraining data:")
-    logger.info(f"  Before: 300 synthetic ({int((df_syn.label==1).sum())}H/{int((df_syn.label==0).sum())}B)")
+    logger.info(f"  Before: 5000 synthetic ({int((df_syn.label==1).sum())}H/{int((df_syn.label==0).sum())}B)")
     logger.info(f"  After:  {len(df_combined)} ({int((df_combined.label==1).sum())}H/{int((df_combined.label==0).sum())}B) [+{len(df_real)} real]")
     logger.success("Done. Check validation/results/metrics.json for full after-training metrics.")
 

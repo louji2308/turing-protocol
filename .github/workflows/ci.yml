@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Python unit tests
+        run: |
+          pytest tests/unit/ -v --cov=interrogator --cov=data_pipeline --cov=scorers --cov-report=term
+
+  test-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install contract dependencies
+        working-directory: contracts
+        run: npm ci
+
+      - name: Run Hardhat contract tests
+        working-directory: contracts
+        run: npx hardhat test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black
+
+      - name: Lint Python code
+        run: |
+          flake8 interrogator/ oracle_service/ data_pipeline/ scorers/ ghost_agent/ --max-line-length=120 --exclude=__pycache__

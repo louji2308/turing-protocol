@@ -39,7 +39,7 @@ labeled wallets.
 
 ## Significance
 
-After merging 15 scorable wallets into training (300 synthetic + 15 real = 315
+After merging 15 scorable wallets into training (5000 synthetic + 15 real = 5015
 total), ML-only real-world validation AUC jumped from **0.7679 → 0.9643** — a
 +0.1964 improvement from just 15 real-world examples, with recall doubling from
 0.375 to 0.750 at perfect (1.000) precision. Achieving a comparable improvement via

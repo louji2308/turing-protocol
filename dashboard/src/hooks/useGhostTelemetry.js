@@ -8,7 +8,7 @@ export function useGhostTelemetry(ghostAddress) {
   const [lastFetched, setLastFetched] = useState(null);
   const [apiAvailable, setApiAvailable] = useState(false);
 
-  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
+  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
 
   const fetchTelemetry = useCallback(async () => {
     if (!ghostAddress || ghostAddress === '0x0000000000000000000000000000000000000000') return;

@@ -5,7 +5,25 @@ const HPS_COLOR_SCALE = d3.scaleLinear()
   .domain([0, 4000, 7000, 10000])
   .range(['#ef4444', '#f59e0b', '#84cc16', '#22c55e']);
 
-export function SybilGraph({ clusters }) {
+function Skeleton() {
+  return (
+    <div className="sybil-graph-panel bg-slate-900 rounded-xl p-4">
+      <h3 className="text-lg font-semibold text-white mb-2">Sybil Cluster Map</h3>
+      <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          width: '80%', height: 300,
+          background: 'linear-gradient(90deg, rgba(30,41,59,0.5) 25%, rgba(51,65,85,0.5) 50%, rgba(30,41,59,0.5) 75%)',
+          backgroundSize: '200% 100%',
+          borderRadius: 'var(--radius-md)',
+          animation: 'shimmer 1.5s ease-in-out infinite',
+        }} />
+      </div>
+      <p className="text-sm text-slate-400 mt-2">Loading cluster topology...</p>
+    </div>
+  );
+}
+
+export function SybilGraph({ clusters, loading = false }) {
   const svgRef = useRef(null);
   const [selected, setSelected] = useState(null);
 

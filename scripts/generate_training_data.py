@@ -43,8 +43,8 @@ def make_synthetic_wallet_df(n=80, seed=42, human_strength=0.5):
     # Blend: human_strength controls the mix
     # At 0.0: pure agent, at 1.0: pure human
     blend = rng.beta(
-        a=2.0 * (1.0 - human_strength) + 0.5,
-        b=2.0 * human_strength + 0.5,
+        a=20.0 * human_strength + 0.5,
+        b=20.0 * (1.0 - human_strength) + 0.5,
     ) if human_strength not in (0.0, 1.0) else human_strength
     delays = agent_delays * (1.0 - blend) + human_delays * blend
     delays = np.clip(delays, 0.05, 3600)
@@ -209,11 +209,15 @@ def make_synthetic_wallet_df(n=80, seed=42, human_strength=0.5):
 
 
 def main():
+    import sys
+    logger.remove()
+    logger.add(sys.stderr, format="{level} | {message}", colorize=False)
+
     eng = BehavioralFeatureEngineer()
     all_features = []
     all_labels = []
 
-    n_wallets = 1000
+    n_wallets = 5000
 
     # --- Generate wallets on a spectrum ---
     # human_strength = 0.0 → 0.2: strong agents
@@ -228,8 +232,11 @@ def main():
     # ambiguous samples and CANNOT achieve perfect separation.
 
     rng = np.random.default_rng(42)
+    report_every = max(1, n_wallets // 20)
 
     for i in range(n_wallets):
+        if i % report_every == 0:
+            logger.info(f"Generating wallet {i}/{n_wallets}...")
         # Draw human_strength from a U-shaped bimodal distribution
         # Most wallets are clearly human or clearly agent,
         # but ~20% fall in the ambiguous middle.
@@ -267,7 +274,7 @@ def main():
     logger.success(f"Saved to {out_path}")
 
     assert feature_df['label'].nunique() == 2, "Missing a class!"
-    assert feature_df.shape[1] == 48, f"Expected 48 cols (47 features + label), got {feature_df.shape[1]}"
+    assert feature_df.shape[1] == 50, f"Expected 50 cols (49 features + label), got {feature_df.shape[1]}"
     logger.success("Sanity check passed.")
 
 

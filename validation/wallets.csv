@@ -1,33 +1,33 @@
 address,chain,label,confidence,source,evidence_link,notes
 # ============================================================
-# BOT ADDRESSES — Mantle-active Sybil clusters
+# PRIMARY VALIDATION SET — Mantle-Native Wallets (LOOCV)
+# These 23 wallets form the primary LOOCV validation set.
 # ============================================================
-0x8080AC04B397127b501049298413C6BB330d1329,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle star cluster sybil hub — 50+ members
-0x7e2E2aa967E0b1d9F518b55a5ded50a5784B1d5C,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle star cluster sybil — 20 members
-0x2e150ECE5448185b04571D6D65E529E2aFa58D3F,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle star cluster sybil — 17 members
-0x9bff968154D9c5d3e6e8e0551AF20b2f5333cc22,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle line chain cluster sybil — 20 nodes
-0xEC6CEda15421f1a6f9ae1Bb621039f1d6f748248,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle line cluster sybil — 11 nodes
-0xD809688C5A1A4bd6104b74F9C79abB22a3b99dA4,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle star cluster sybil — 10 members
-0xb4b9a45be688032d74b0d5a63072ad047071c116,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,Mantle star cluster sybil — 15 members
-0x63c9a867D704dF159bbBB88EeEe1609196b1995E,mantle,0,high,mantle_sybil,https://mantlescan.xyz/address/0x63c9a867D704dF159bbBB88EeEe1609196b1995E,Mantle Sybil delegate atila_o_huno
-0x36f26E2E5BED062968c17FC770863FD740713205,mantle,0,high,mantle_sybil,https://mantlescan.xyz/address/0x36f26E2E5BED062968c17FC770863FD740713205,Mantle Sybil delegate 3detch
-0x98D62Dd170D9B8979bDdb98AE6bb6f7640A82AD3,mantle,0,high,sybil_report,https://github.com/ZeroTrackr/layerzero-sybil-report,LayerZero Sybil — 849 wallets via Disperse.app
-0x770EDb43ECC5BCbE6f7088e1049fC42B2d1B195C,mantle,0,high,sybil_report,https://github.com/ZeroTrackr/layerzero-sybil-report,LayerZero Sybil — 480 wallets
-# ============================================================
-# HUMAN ADDRESSES — Mantle-active known individuals
-# ============================================================
-0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045,mantle,1,high,ens_doxxed,https://etherscan.io/address/vitalik.eth,Vitalik Buterin — vitalik.eth — Ethereum co-founder
-0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B,mantle,1,high,etherscan_tag,https://etherscan.io/address/0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B,Vitalik Buterin legacy wallet — labeled Vb
-0x1b3Cb81E51011b549d78bf720b0d924Ac763A7C2,mantle,1,high,public_figure,https://etherscan.io/address/0x1b3Cb81E51011b549d78bf720b0d924Ac763A7C2,Joseph Lubin — Ethereum co-founder
-0xB955bCCC2d0DB2785e1bB9668723024a123fE0d1,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xB955bCCC2d0DB2785e1bB9668723024a123fE0d1,mvkarta.eth — 1049 txs on Mantle — active DeFi user
-0xb3397A6FeEdff2b9fCe9Ca1086CB1Bdd617c16Bf,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xb3397A6FeEdff2b9fCe9Ca1086CB1Bdd617c16Bf,kristoph.eth — 10 txs on Mantle
-0xA2c0905a8a1E66CC1633D2031ee21B18D4A42fA6,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xA2c0905a8a1E66CC1633D2031ee21B18D4A42fA6,bytkit.eth — 708 txs on Mantle
-0x8C9a169f0A4E3daA2E8d885F1F170dda11DB771B,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x8C9a169f0A4E3daA2E8d885F1F170dda11DB771B,ihorkhyzhniak.eth — 39 txs on Mantle
-0xE0E216283eef00895b6ABAa73848448596B85724,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xE0E216283eef00895b6ABAa73848448596B85724,amankrisz.eth — 1053 txs on Mantle
-0x119B9DbE4A5e3fAE94FCe23511562a0DD78CB6D3,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x119B9DbE4A5e3fAE94FCe23511562a0DD78CB6D3,mantikior.eth — 10 txs on Mantle
-0x08a1D63589A52455E90CA1eC01c8D48C54a84Ed0,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x08a1D63589A52455E90CA1eC01c8D48C54a84Ed0,cryptokral.eth — 693 txs on Mantle
-0x3Dc5FcB0Ad5835C6059112e51A75b57DBA668eB8,mantle,1,high,mantle_team,https://docs.mantle.xyz/,Mantle Security Council signer — hardware EOA — mETH admin
+# --- BOT ADDRESSES — Mantle-active Sybil clusters ---
+0x8080AC04B397127b501049298413C6BB330d1329,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle star cluster sybil hub — 50+ members"
+0x7e2E2aa967E0b1d9F518b55a5ded50a5784B1d5C,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle star cluster sybil — 20 members"
+0x2e150ECE5448185b04571D6D65E529E2aFa58D3F,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle star cluster sybil — 17 members"
+0x9bff968154D9c5d3e6e8e0551AF20b2f5333cc22,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle line chain cluster sybil — 20 nodes"
+0xEC6CEda15421f1a6f9ae1Bb621039f1d6f748248,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle line cluster sybil — 11 nodes"
+0xD809688C5A1A4bd6104b74F9C79abB22a3b99dA4,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle star cluster sybil — 10 members"
+0xb4b9a45be688032d74b0d5a63072ad047071c116,mantle,0,high,mantle_sybil,https://hackmd.io/MSLt49rtRpaa2Y64t4pKaA,"Mantle star cluster sybil — 15 members"
+0x63c9a867D704dF159bbBB88EeEe1609196b1995E,mantle,0,high,mantle_sybil,https://mantlescan.xyz/address/0x63c9a867D704dF159bbBB88EeEe1609196b1995E,"Mantle Sybil delegate atila_o_huno"
+0x36f26E2E5BED062968c17FC770863FD740713205,mantle,0,high,mantle_sybil,https://mantlescan.xyz/address/0x36f26E2E5BED062968c17FC770863FD740713205,"Mantle Sybil delegate 3detch"
+0x98D62Dd170D9B8979bDdb98AE6bb6f7640A82AD3,mantle,0,high,sybil_report,https://github.com/ZeroTrackr/layerzero-sybil-report,"LayerZero Sybil — 849 wallets via Disperse.app"
+0x770EDb43ECC5BCbE6f7088e1049fC42B2d1B195C,mantle,0,high,sybil_report,https://github.com/ZeroTrackr/layerzero-sybil-report,"LayerZero Sybil — 480 wallets"
+# --- HUMAN ADDRESSES — Mantle-active known individuals ---
+0xB955bCCC2d0DB2785e1bB9668723024a123fE0d1,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xB955bCCC2d0DB2785e1bB9668723024a123fE0d1,"mvkarta.eth — 1049 txs on Mantle — active DeFi user"
+0xb3397A6FeEdff2b9fCe9Ca1086CB1Bdd617c16Bf,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xb3397A6FeEdff2b9fCe9Ca1086CB1Bdd617c16Bf,"kristoph.eth — 10 txs on Mantle"
+0xA2c0905a8a1E66CC1633D2031ee21B18D4A42fA6,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xA2c0905a8a1E66CC1633D2031ee21B18D4A42fA6,"bytkit.eth — 708 txs on Mantle"
+0x8C9a169f0A4E3daA2E8d885F1F170dda11DB771B,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x8C9a169f0A4E3daA2E8d885F1F170dda11DB771B,"ihorkhyzhniak.eth — 39 txs on Mantle"
+0xE0E216283eef00895b6ABAa73848448596B85724,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0xE0E216283eef00895b6ABAa73848448596B85724,"amankrisz.eth — 1053 txs on Mantle"
+0x119B9DbE4A5e3fAE94FCe23511562a0DD78CB6D3,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x119B9DbE4A5e3fAE94FCe23511562a0DD78CB6D3,"mantikior.eth — 10 txs on Mantle"
+0x08a1D63589A52455E90CA1eC01c8D48C54a84Ed0,mantle,1,medium,ens_doxxed,https://mantlescan.xyz/address/0x08a1D63589A52455E90CA1eC01c8D48C54a84Ed0,"cryptokral.eth — 693 txs on Mantle"
+0x3Dc5FcB0Ad5835C6059112e51A75b57DBA668eB8,mantle,1,high,mantle_team,https://docs.mantle.xyz/,"Mantle Security Council signer — hardware EOA — mETH admin"
+0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045,ethereum,1,high,ens_doxxed,https://etherscan.io/address/vitalik.eth,"Vitalik Buterin — vitalik.eth — Ethereum co-founder (cross-chain appendix)"
+0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B,ethereum,1,high,etherscan_tag,https://etherscan.io/address/0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B,"Vitalik Buterin legacy wallet — labeled Vb (cross-chain appendix)"
+0x1b3Cb81E51011b549d78bf720b0d924Ac763A7C2,ethereum,1,high,public_figure,https://etherscan.io/address/0x1b3Cb81E51011b549d78bf720b0d924Ac763A7C2,"Joseph Lubin — Ethereum co-founder (cross-chain appendix)"
 # ============================================================
 # SELF-DEPLOYED GHOST AGENT — confirmed bot on testnet
 # ============================================================
-0xfdaE6B5f5A8802e47c48dEa56157406c5a54C700,mantle_sepolia,0,high,self_deployed,N/A,Ghost agent — documented in ghost_agent/ — trades on Mantle Sepolia
+0xfdaE6B5f5A8802e47c48dEa56157406c5a54C700,mantle_sepolia,0,high,self_deployed,N/A,"Ghost agent — documented in ghost_agent/ — trades on Mantle Sepolia"

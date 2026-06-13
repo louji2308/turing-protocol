@@ -40,7 +40,7 @@ config = OracleConfig()
 
 
 async def _run_sybil_scheduler(cache: ScoreCache, interrogator_inst):
-    await asyncio.sleep(120)
+    await asyncio.sleep(5)
     detector = SybilClusterDetector()
     while True:
         try:

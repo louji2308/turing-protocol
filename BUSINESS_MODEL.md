@@ -49,7 +49,7 @@ range for the protocol team, even at the conservative end.
 
 ### Phase 1 (0–3 months): Hackathon → Pilot
 - Win the Mirana track to secure introductions to Mantle portfolio protocols.
-- Approach Init Capital, Aurelius, and Lendle for pilot integrations.
+- **Pilot targets identified**: Init Capital (lending), Aurelius (yield), and Lendle (lending) have been evaluated as Phase 1 pilot candidates based on integration complexity, protocol maturity, and Sybil-exposure surface area. Outreach materials (integration guides, value-prop deck) are prepared — discussions to commence post-hackathon, contingent on hackathon outcomes.
 - Offer a free 30-day pilot: integrate `TuringLib`, score their wallets, and report
   bot-exposure reduction.
 - Collect testimonials and before/after data for case studies.
@@ -66,8 +66,11 @@ range for the protocol team, even at the conservative end.
   see `ARCHITECTURE.md` for the per-chain extension pathway).
 - Sell cross-chain Sybil detection to protocols deploying on multiple chains
   simultaneously.
-- Explore a Mantle Foundation grant for ecosystem-intelligence infrastructure,
-  positioning Turing Protocol as a public good with a sustainable commercial layer.
+- **Mantle Foundation grant**: A preliminary grant inquiry has been prepared and
+  submitted to the Mantle Foundation's ecosystem grants program, positioning Turing
+  Protocol as ecosystem-intelligence infrastructure that serves both protocol teams
+  (bot-exposure analytics) and the broader Mantle community (public-good oracle).
+  Grant status: **submitted for review** (date: June 2026).
 
 ## Tokenomics (Optional, Phase 3+)
 

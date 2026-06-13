@@ -1,6 +1,20 @@
 import { useState } from 'react';
-import { ScoreGauge } from './ScoreGauge';
-import { FeatureWaterfall } from './FeatureWaterfall';
+import ScoreGauge from './ScoreGauge';
+import FeatureWaterfall from './FeatureWaterfall';
+
+function LoadingSkeleton() {
+  return (
+    <div className="checker-hero bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-xl" aria-busy="true" role="status">
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 bg-slate-700 rounded w-3/4" />
+        <div className="h-4 bg-slate-700 rounded w-1/2" />
+        <div className="h-12 bg-slate-700 rounded w-full" />
+        <div className="h-32 bg-slate-700 rounded w-full" />
+      </div>
+      <span className="sr-only">Loading wallet checker...</span>
+    </div>
+  );
+}
 
 const ORACLE_URL = import.meta.env.VITE_ORACLE_URL || 'http://localhost:8080';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$|^[a-zA-Z0-9-]+\.eth$/;
@@ -14,7 +28,7 @@ function humanizeError(code) {
   return messages[code] || `Could not score this wallet (${code}).`;
 }
 
-export function WalletChecker() {
+export function WalletChecker({ loading: externalLoading = false, onScoreResult = null }) {
   const [address, setAddress] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -58,30 +72,39 @@ export function WalletChecker() {
     link.click();
   };
 
+  const isLoading = loading || externalLoading;
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
   return (
-    <div className="checker-hero bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-xl">
+    <div className="checker-hero bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-xl" role="form" aria-label="Wallet humanity checker">
       <h2 className="text-2xl font-bold text-white mb-2">Is this wallet human?</h2>
       <p className="text-slate-400 mb-6">
         Enter any Mantle wallet address or ENS name. No gas. No wallet connection.
         Instant result, fully explained.
       </p>
-      <div className="flex gap-3">
+      <div className="flex gap-3" role="group" aria-label="Wallet address input">
         <input
           className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 font-mono text-sm"
           placeholder="0x... or name.eth"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && checkWallet()}
+          aria-label="Wallet address or ENS name"
+          autoComplete="off"
         />
         <button
           onClick={checkWallet}
           disabled={loading}
           className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-3 rounded-lg font-semibold"
+          aria-label={loading ? 'Scoring wallet' : 'Check wallet score'}
         >
           {loading ? 'Scoring...' : 'Score \u2192'}
         </button>
       </div>
-      {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+      {error && <p className="text-red-400 text-sm mt-3" role="alert">{error}</p>}
       {result && (
         <div id="wallet-result-card" className="mt-6 bg-slate-900 rounded-lg p-6">
           <ScoreGauge hps={result.hps} />

@@ -18,7 +18,7 @@ export function useRealclawTrust(ghostAddress) {
   const [tier, setTier] = useState('standard');
   const [includeNarrative, setIncludeNarrative] = useState(true);
 
-  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
+  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
   const checksRef = useRef(checks);
   checksRef.current = checks;
 

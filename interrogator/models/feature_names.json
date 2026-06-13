@@ -45,5 +45,7 @@
   "net_2_top3_concentration",
   "net_3_wallet_age_blocks_log",
   "net_4_total_volume_log",
-  "net_5_contract_ratio"
+  "net_5_contract_ratio",
+  "mantle_48_staking_duration_days",
+  "mantle_49_bridge_cv"
 ]

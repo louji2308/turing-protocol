@@ -348,6 +348,21 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }

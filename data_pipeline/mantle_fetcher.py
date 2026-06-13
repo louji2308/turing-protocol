@@ -421,7 +421,7 @@ class MantleDataFetcher:
     async def fetch_protocol_interactors(
         self, protocol_address: str, days: int = 30, max_results: int = 1000
     ) -> list[str]:
-        protocol_address = Web3.to_checksum_address(protocol_address)
+        protocol_address = Web3.to_checksum_address(protocol_address.lower())
         cutoff_ts = int(time.time()) - days * 86400
         interactors: set[str] = set()
         try:

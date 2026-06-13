@@ -6,6 +6,7 @@ import joblib
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     roc_auc_score, classification_report,
     confusion_matrix, brier_score_loss
@@ -45,6 +46,7 @@ class InterrogatorModel:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.model: Optional[xgb.XGBClassifier] = None
         self.explainer: Optional[shap.TreeExplainer] = None
+        self._calibrator: Optional[LogisticRegression] = None
 
     def build_model(self) -> xgb.XGBClassifier:
         """
@@ -67,20 +69,21 @@ class InterrogatorModel:
         - enable_categorical=False: All features are numerical
         """
         return xgb.XGBClassifier(
-            n_estimators=400,
-            max_depth=5,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.7,
-            min_child_weight=5,
+            n_estimators=2000,
+            max_depth=6,
+            learning_rate=0.01,
+            subsample=0.7,
+            colsample_bytree=0.6,
+            min_child_weight=10,
             gamma=0.1,
-            reg_alpha=0.1,      # L1 regularization
-            reg_lambda=1.0,     # L2 regularization
+            reg_alpha=0.5,
+            reg_lambda=2.0,
             objective='binary:logistic',
             eval_metric='auc',
+            early_stopping_rounds=50,
             tree_method='hist',
             random_state=42,
-            n_jobs=-1,          # Use all CPU cores
+            n_jobs=-1,
             verbosity=0,
         )
 
@@ -123,15 +126,29 @@ class InterrogatorModel:
             f"Scale pos weight: {scale_pos_weight:.2f}"
         )
 
-        # Fit with early stopping
+        # Fit with early stopping — stops if validation AUC
+        # hasn't improved for 30 consecutive rounds.
+        # Without early_stopping_rounds, all 400 trees train
+        # and the model overfits (test AUC drops to ~0.82 vs 0.90).
         self.model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
-            verbose=50,  # Print every 50 rounds
+            verbose=50,
         )
+        # XGBoost's sklearn wrapper automatically sets best_iteration
+        # and uses best_ntree_limit for all subsequent predict calls.
+        # This means preds use only the optimal number of trees,
+        # not all 400.
 
         # Store feature names for SHAP
         self.feature_names = feature_names
+
+        # Platt calibration: fit logistic regression on validation margin scores
+        n_trees = self._best_n_trees()
+        val_margins = self.model.predict(X_val, iteration_range=(0, n_trees), output_margin=True)
+        self._calibrator = LogisticRegression(C=1e6, solver='lbfgs')
+        self._calibrator.fit(val_margins.reshape(-1, 1), y_val)
+        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples")
 
         # Build SHAP explainer
         logger.info("Building SHAP TreeExplainer...")
@@ -143,6 +160,18 @@ class InterrogatorModel:
 
         return metrics
 
+    def _best_n_trees(self) -> int:
+        if hasattr(self.model, 'best_iteration') and self.model.best_iteration is not None:
+            return self.model.best_iteration + 1
+        return self.model.n_estimators
+
+    def _calibrated_proba(self, X: np.ndarray) -> np.ndarray:
+        n_trees = self._best_n_trees()
+        if hasattr(self, '_calibrator') and self._calibrator is not None:
+            margins = self.model.predict(X, iteration_range=(0, n_trees), output_margin=True)
+            return self._calibrator.predict_proba(margins.reshape(-1, 1))
+        return self.model.predict_proba(X, iteration_range=(0, n_trees))
+
     def _evaluate(
         self,
         X_val: np.ndarray,
@@ -151,8 +180,11 @@ class InterrogatorModel:
         """
         Comprehensive evaluation of the trained model.
         """
-        probs = self.model.predict_proba(X_val)[:, 1]
+        n_trees = self._best_n_trees()
+        probs = self._calibrated_proba(X_val)[:, 1]
         preds = (probs >= 0.5).astype(int)
+
+        logger.info(f"Using {n_trees} trees for evaluation (out of {self.model.n_estimators})")
 
         auc = roc_auc_score(y_val, probs)
         brier = brier_score_loss(y_val, probs)
@@ -193,7 +225,8 @@ class InterrogatorModel:
         if self.model is None:
             raise RuntimeError("Model not trained. Call train() first.")
 
-        prob = self.model.predict_proba(X)[0, 1]  # P(human)
+        n_trees = self._best_n_trees()
+        prob = self._calibrated_proba(X)[0, 1]  # P(human)
         hps = int(prob * 10000)
 
         if return_uncertainty:
@@ -289,6 +322,9 @@ class InterrogatorModel:
 
         joblib.dump(self.model, model_path)
         joblib.dump(self.explainer, explainer_path)
+        if hasattr(self, '_calibrator') and self._calibrator is not None:
+            calib_path = self.models_dir / "calibrator.joblib"
+            joblib.dump(self._calibrator, calib_path)
 
         meta = {
             "version": self.MODEL_VERSION,
@@ -315,6 +351,12 @@ class InterrogatorModel:
         self.model = joblib.load(model_path)
         self.explainer = joblib.load(explainer_path)
 
+        calib_path = self.models_dir / "calibrator.joblib"
+        if calib_path.exists():
+            self._calibrator = joblib.load(calib_path)
+        else:
+            self._calibrator = None
+
         with open(meta_path, "r") as f:
             meta = json.load(f)
         self.feature_names = meta["feature_names"]
@@ -330,9 +372,10 @@ class InterrogatorModel:
 def score_wallet_with_uncertainty(model: xgb.XGBClassifier, X: np.ndarray) -> dict:
     booster = model.get_booster()
     dmatrix = xgb.DMatrix(X)
-    n_trees = booster.num_boosted_rounds()
+    total_trees = booster.num_boosted_rounds()
+    n_trees = (model.best_iteration + 1) if hasattr(model, 'best_iteration') and model.best_iteration is not None else total_trees
 
-    point_estimate = float(model.predict_proba(X)[0, 1])
+    point_estimate = float(model.predict_proba(X, iteration_range=(0, n_trees))[0, 1])
 
     try:
         staged_margins = np.array([

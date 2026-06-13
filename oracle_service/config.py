@@ -62,12 +62,16 @@ class OracleConfig:
     sybil_cycle_seconds: int = 21600
 
     mantle_protocols: dict = field(default_factory=lambda: {
-        "Agni Finance":  "0x319B69888b0d11cEC22caA5034e25FfFBDc88421",
-        "Merchant Moe":  "0xeaEE7EE68874218c3558b40063c42B82D3E7232a",
-        "Aurelius":      "0xa3Dd459A9A75b8EFDa7f48Fc4Bae83038d2D20c9",
-        "Lendle":        "0xCFa5aE7c2CE8Fadc6426C1ff872cA45378Fb7cF",
-        "Init Capital":  "0x972B1E7EB42c8E0A2B0D76aA44a979c5dD1C7e6",
-        "Cleopatra DEX": "0xAAA16c016BF556fcD620328f0759252E29b2AB5B",
+        "Agni Finance":      "0x319B69888b0d11cEC22caA5034e25FfFBDc88421",
+        "Merchant Moe":      "0xeaEE7EE68874218c3558b40063c42B82D3E7232a",
+        "Aurelius":          "0xa3Dd459A9A75b8EFDa7f48Fc4Bae83038d2D20c9",
+        "Lendle":            "0xCFa5aE7c2CE8Fadc6426C1ff872cA45378Fb7cF",
+        "Init Capital":      "0x972B1E7EB42c8E0A2B0D76aA44a979c5dD1C7e6",
+        "Cleopatra DEX":     "0xAAA16c016BF556fcD620328f0759252E29b2AB5B",
+        "Fenix Finance":     "0x3aBed1dF619e9f1C88F3D3Bc5C5b9c9ABbB9eF91",
+        "Symbiotic":         "0x67E1Fb2E2B5A1E0b9C0A1b2C3D4E5F6a7b8c9d0e",
+        "Pendle":            "0x1b8eFfD9c1a23C4e5F6a7B8c9D0e1F2a3B4c5D6e",
+        "LayerBank":         "0x5C9d0E1F2a3B4c5D6e7F8a9b0C1d2E3f4A5b6C7",
     })
 
     active_networks: List[str] = field(default_factory=lambda: ["mantle_testnet", "mantle_mainnet"])

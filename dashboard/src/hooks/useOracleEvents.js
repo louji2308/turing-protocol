@@ -30,7 +30,7 @@ export function useOracleEvents(ghostAddress) {
   }, []);
 
   const fetchOracleStats = useCallback(async () => {
-    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
+    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
     try {
       const resp = await fetch(`${apiBase}/stats`,         { signal: AbortSignal.timeout(45000) });
       if (resp.ok) {
@@ -45,7 +45,7 @@ export function useOracleEvents(ghostAddress) {
   }, []);
 
   const fetchLeaderboard = useCallback(async () => {
-    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8000';
+    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
     try {
       const resp = await fetch(`${apiBase}/leaderboard?limit=20`, { signal: AbortSignal.timeout(45000) });
       if (resp.ok) {

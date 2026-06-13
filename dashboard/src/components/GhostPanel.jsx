@@ -1,19 +1,29 @@
 import { useState, useEffect } from 'react';
 import { Activity, Zap, Eye, Clock } from 'lucide-react';
 
-export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatus = null }) {
+function Skeleton({ ghostAddress, currentHPS, ghostStatus }) {
+  return (
+    <div className="panel" style={{ animation: 'fade-in-up 400ms var(--ease-out) both' }}>
+      <div className="panel-header">
+        <div className="panel-title">THE GHOST AGENT</div>
+        <div className="panel-subtitle">Loading agent status...</div>
+      </div>
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} style={{
+          height: i <= 2 ? 60 : 40, marginBottom: 8,
+          background: 'linear-gradient(90deg, var(--surface-01) 25%, var(--surface-02) 50%, var(--surface-01) 75%)',
+          backgroundSize: '200% 100%',
+          borderRadius: 'var(--radius-md)',
+          animation: 'shimmer 1.5s ease-in-out infinite',
+        }} />
+      ))}
+    </div>
+  );
+}
+
+export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatus = null, loading = false }) {
   const [recentActions, setRecentActions] = useState([]);
   const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    if (ghostStatus) {
-      return;
-    }
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [ghostStatus]);
 
   const isRunning = ghostStatus?.running ?? true;
   const cycles = ghostStatus?.cycles ?? '\u2014';
@@ -72,6 +82,10 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
       default: return '\u25CF';
     }
   };
+
+  if (loading) {
+    return <Skeleton />;
+  }
 
   const getActionColor = (type) => {
     switch (type) {
