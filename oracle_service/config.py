@@ -70,7 +70,7 @@ class OracleConfig:
         "Cleopatra DEX": "0xAAA16c016BF556fcD620328f0759252E29b2AB5B",
     })
 
-    active_networks: List[str] = field(default_factory=lambda: ["mantle_testnet"])
+    active_networks: List[str] = field(default_factory=lambda: ["mantle_testnet", "mantle_mainnet"])
     network_config: dict = field(default_factory=lambda: {
         "mantle_testnet": {
             "rpc": "https://rpc.sepolia.mantle.xyz",
@@ -78,6 +78,13 @@ class OracleConfig:
             "hps_oracle": os.getenv("HPS_ORACLE_ADDRESS", ""),
             "proof_of_behavior": os.getenv("PROOF_OF_BEHAVIOR_ADDRESS", ""),
             "explorer": "https://explorer.testnet.mantle.xyz",
+        },
+        "mantle_mainnet": {
+            "rpc": "https://rpc.mantle.xyz",
+            "chain_id": 5000,
+            "hps_oracle": os.getenv("HPS_ORACLE_ADDRESS_MAINNET", ""),
+            "proof_of_behavior": os.getenv("PROOF_OF_BEHAVIOR_ADDRESS_MAINNET", ""),
+            "explorer": "https://explorer.mantle.xyz",
         },
     })
 

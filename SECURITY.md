@@ -2,14 +2,20 @@
 
 ## Smart Contract Audit
 
-Static analysis performed with Slither v0.10.x against `HPSOracle.sol`,
-`ProofOfBehavior.sol`, and `TuringLib.sol`. Summary:
+Manual review performed against `HPSOracle.sol`, `ProofOfBehavior.sol`,
+and `TuringLib.sol`. Automated static analysis (Slither) is currently
+blocked — the project uses Hardhat 3, whose artifact format
+(`hh3-sol-build-info-1`) is not supported by `crytic-compile` 0.3.11.
+
+All three contracts are built on OpenZeppelin audited v5 base implementations.
+
+Summary:
 
 - **0 High severity findings**
 - **0 Medium severity findings**
-- **0 Low severity findings**
+- **3 Low severity findings** (see [SECURITY_REPORT.md](SECURITY_REPORT.md) for details)
 
-Full raw output: [SECURITY_REPORT.md](SECURITY_REPORT.md).
+Full manual analysis: [SECURITY_REPORT.md](SECURITY_REPORT.md).
 
 ## Model Security
 

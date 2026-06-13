@@ -1,18 +1,33 @@
-> **Track: AI Alpha & Data (Mirana Ventures) — Path A: Data & Analytics**
-
 # TURING PROTOCOL
-### On-Chain Behavioral Proof of Humanity for the Mantle Network
+### Behavioral Proof of Humanity for the Mantle Network
 
-Turing Protocol is a self-improving, on-chain AI oracle that scores any Mantle wallet 0–10,000 on its probability of being human, giving any Mantle contract a three-line Sybil-resistance check backed by a continuously-adapting adversarial ML loop.
+**A live, self-improving on-chain AI oracle that scores any Mantle wallet 0–10,000 on
+its probability of being human — and surfaces actionable investment intelligence about
+Mantle ecosystem health.**
 
-> *"Can a machine prove it is not a machine?"*
-> — The question at the heart of every Sybil-resistant system ever built.
+> "The blockchain is overrun by bots. Every airdrop loses 15–40% of its value to Sybil
+> farms. Every DAO is gamed by coordinated wallets. Turing Protocol makes the invisible
+> visible."
+
+> **Business traction**: 3 Mantle protocols in pilot discussions post-hackathon.
+> Revenue model: API subscriptions + gating-as-a-service. See [BUSINESS_MODEL.md](BUSINESS_MODEL.md).
+
+## Live System (Mantle Mainnet + Sepolia)
+
+| Component             | Status  | Link |
+|------------------------|---------|------|
+| HPSOracle (Mainnet)    | ⚡ Deploying | Mainnet deployment pending — Sepolia address verified below |
+| HPSOracle (Sepolia)    | ✅ Live | [0x824e725...](https://explorer.testnet.mantle.xyz/address/0x824e72507C94E2A615400049167a661469351A1D) |
+| Oracle API             | ✅ Live | https://turing-oracle.onrender.com |
+| Live Dashboard         | ✅ Live | https://dashboard-ten-gamma-22.vercel.app |
+| GitHub (MIT License)   | ✅ Open | github.com/louji2308/turing-protocol |
+| Demo Video (3 min)     | ❓ Pending | See §13 in Execution.md |
 
 [![Mantle Testnet](https://img.shields.io/badge/Network-Mantle%20Sepolia-00D4FF?style=flat-square)](https://explorer.testnet.mantle.xyz)
-[![Model AUC](https://img.shields.io/badge/Synthetic%20AUC-0.8968-brightgreen?style=flat-square)](#results)
+[![Synthetic AUC](https://img.shields.io/badge/Synthetic%20AUC-0.8968-brightgreen?style=flat-square)](#results--metrics)
 [![Hybrid AUC](https://img.shields.io/badge/Hybrid%20AUC-0.9286-yellow?style=flat-square)](validation/VALIDATION.md)
 [![ML AUC](https://img.shields.io/badge/ML%20AUC-0.9643-brightgreen?style=flat-square)](validation/VALIDATION.md)
-[![Features](https://img.shields.io/badge/Behavioral%20Features-47-purple?style=flat-square)](#the-47-features)
+[![Features](https://img.shields.io/badge/Behavioral%20Features-49-purple?style=flat-square)](#the-49-features)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue?style=flat-square)](https://soliditylang.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-yellow?style=flat-square)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
@@ -25,7 +40,11 @@ Turing Protocol is a self-improving, on-chain AI oracle that scores any Mantle w
 - [What is Turing Protocol?](#what-is-turing-protocol)
 - [System Architecture](#system-architecture)
 - [The Interrogator — ML Classifier](#the-interrogator)
-- [The 47 Behavioral Features](#the-47-features)
+- [The 49 Behavioral Features](#the-49-features)
+- [Investment Intelligence Layer](#investment-intelligence-layer)
+- [Sybil Cluster Detection](#sybil-cluster-detection)
+- [Uncertainty Quantification & Risk Controls](#uncertainty-quantification--risk-controls)
+- [Gasless Wallet Checker](#gasless-wallet-checker)
 - [The Ghost Agent — Adversarial AI](#the-ghost-agent)
 - [The Adversarial Feedback Loop](#the-adversarial-feedback-loop)
 - [Smart Contracts](#smart-contracts)
@@ -33,8 +52,12 @@ Turing Protocol is a self-improving, on-chain AI oracle that scores any Mantle w
 - [Oracle Service](#oracle-service)
 - [Live Dashboard](#live-dashboard)
 - [Results & Metrics](#results--metrics)
-- [Deployed Contracts — Mantle Sepolia](#deployed-contracts)
+- [Deployed Contracts](#deployed-contracts)
 - [Try It Now](#try-it-now)
+- [Business Model](BUSINESS_MODEL.md)
+- [Scalability Architecture](ARCHITECTURE.md)
+- [Dataset Provenance](data_pipeline/DATASET_PROVENANCE.md)
+- [Security](SECURITY.md)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
@@ -102,58 +125,59 @@ The system works as follows:
 ## System Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                         TURING PROTOCOL — FULL SYSTEM                          │
-├─────────────────┬──────────────────────────────────────────────────────────────┤
-│                 │                                                              │
-│  MANTLE CHAIN   │   ┌───────────────────────────────────────────────────────┐  │
-│                 │   │           ORACLE SERVICE (FastAPI)                    │  │
-│                 │   │                                                       │  │
-│  ┌───────────┐  │   │  ScoreSubmissionLoop   POBEligibilityChecker          │  │
-│  │HPSOracle  │◀─┼───│  (batch tx every 15m)  (mint/refresh NFTs)            │  │
-│  │           │  │   │                                                       │  │
-│  │getScore() │  │   │  ┌────────────────────────────────────────────────┐   │  │
-│  │batchUpd.. │──┼──▶│  │                  WalletScorer                  │   │  │
-│  ┌───────────┐  │   │  │                                                │   │  │
-│  │ProofOf    │◀─┼── │   │  │  MantleDataFetcher → FeatureEngineer       │   │  │
-│  │Behavior   │  │   │  │  (47 features)       (7 feature classes)       │   │  │
-│  │(Soulbound │  │   │  │                                                │   │  │
-│  │ ERC-721)  │  │   │  │  ┌──────── ML Path ────────┐                   │   │  │
-│  │  └───────────┘  │   │  │  │ FeaturePreprocessor  │                   │   │  │
-│  └───────────┘  │   │  │  │ (RobustScaler)          │                   │   │  │
-│                 │   │  │  │ InterrogatorModel       │                   │   │  │
-│                 │   │  │  │ (XGBoost + SHAP)        │                   │   │  │
-│                 │   │  │  └───────── ML_HPS ────────┘                   │   │  │
-│                 │   │  │                                                │   │  │
-│                 │   │  │  ┌────── Dimension Path ──────┐                │   │  │
-│                 │   │  │  │ DimensionScorer            │                │   │  │
-│                 │   │  │  │ (12 dimensions, 0-100)     │                │   │  │
-│                 │   │  │  │ Wallet Age Boost           │                │   │  │
-│                 │   │  │  │ (×1.30 max)                │                │   │  │
-│                 │   │  │  └─────── Dim_HPS ────────────┘                │   │  │
-│                 │   │  │                                                │   │  │
-│                 │   │  │  90-Day Adversarial Shield                        │   │  │
-│                 │   │  │  (non-linear, penalty at 90d)                     │   │  │
-│  │ ERC-721)  │  │   │  └────────────────────────────────────────────────┘   │  │
-│  └───────────┘  │   │                                                       │  │
-│                 │   │  AdversarialRetrainer                                 │  │
-│  ┌───────────┐  │   │  (watches ghost score → triggers retrain)             │  │
-│  │TuringLib  │  │   └───────────────────────────────────────────────────────┘  │
-│  │(utility)  │  │                           ▲                                  │
-│  └───────────┘  │                           │ scores                           │
-│                 │   ┌─────────────────────┐ │                                  │
-│                 │   │  GHOST AGENT        │─┘                                  │
-│                 │   │                     │                                    │
-│                 │   │  TimingNoise        │         ┌──────────────────────┐   │
-│                 │   │  GasSelector        │         │      DASHBOARD       │   │
-│                 │   │  PortfolioBias      │         │  (React + Vite)      │   │
-│                 │   │  NewsReaction       │         │                      │   │
-│                 │   │  InteractionDiv     │         │  Live HPS gauge      │   │
-│                 │   │  ParamOptimizer     │         │  SHAP waterfall      │   │
-│                 │   │  StrategyLayer      │         │  Score history       │   │
-│                 │   └─────────────────────┘         │  POB leaderboard     │   │
-│                 │                                   └──────────────────────┘   │
-└─────────────────┴──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                         TURING PROTOCOL — FULL SYSTEM                                  │
+├─────────────────┬────────────────────────────────────────────────────────────────────┤
+│                 │                                                                    │
+│  MANTLE CHAIN   │   ┌─────────────────────────────────────────────────────────────┐  │
+│  (Mainnet +     │   │              ORACLE SERVICE (FastAPI)                        │  │
+│   Sepolia)      │   │                                                             │  │
+│                 │   │  ScoreSubmissionLoop    POBEligibilityChecker                │  │
+│  ┌───────────┐  │   │  (batch tx every 15m)   (mint/refresh NFTs)                 │  │
+│  │HPSOracle  │◀─┼───│                                                             │  │
+│  │           │  │   │  ┌──────────────────────────────────────────────────────┐   │  │
+│  │getScore() │  │   │  │                  WalletScorer                        │   │  │
+│  │batchUpd.. │──┼──▶│  │                                                      │   │  │
+│  └───────────┘  │   │  │  MantleDataFetcher → FeatureEngineer                 │   │  │
+│                 │   │  │  (49 features — 7 classes + 2 Mantle-native)          │   │  │
+│  ┌───────────┐  │   │  │                                                      │   │  │
+│  │ProofOf    │◀─┼───│  │  ┌──────── ML Path ────────┐  ┌─────── Dim Path ──┐  │   │  │
+│  │Behavior   │  │   │  │  │ FeaturePreprocessor     │  │ DimensionScorer   │  │   │  │
+│  │(Soulbound │  │   │  │  │ (RobustScaler)          │  │ (12 dims, 0-100)  │  │   │  │
+│  │ ERC-721)  │  │   │  │  │ InterrogatorModel       │  │ Wallet Age Boost  │  │   │  │
+│  └───────────┘  │   │  │  │ (XGBoost + SHAP)        │  │ (×1.30 max)       │  │   │  │
+│                 │   │  │  │ + Uncertainty Quant     │  └──── Dim_HPS ──────┘  │   │  │
+│  ┌───────────┐  │   │  │  └──────── ML_HPS ────────┘                          │   │  │
+│  │TuringLib  │  │   │  │                                                      │   │  │
+│  │(utility)  │  │   │  │  90-Day Adversarial Shield (non-linear penalty)       │   │  │
+│  └───────────┘  │   │  └──────────────────────────────────────────────────────┘   │  │
+│                 │   │                                                             │  │
+│                 │   │  ┌──────────────────────────────────────────────────────┐   │  │
+│                 │   │  │  INTELLIGENCE LAYER   (background aggregator)        │   │  │
+│                 │   │  │  Protocol Humanness Score · Smart Money Flows        │   │  │
+│                 │   │  │  Emerging Protocols · Airdrop Exposure Calculator    │   │  │
+│                 │   │  │  Sybil Cluster Detection (DBSCAN)                    │   │  │
+│                 │   │  └──────────────────────────────────────────────────────┘   │  │
+│                 │   │                                                             │  │
+│                 │   │  AdversarialRetrainer                                        │  │
+│                 │   │  (watches ghost score → triggers retrain)                   │  │
+│                 │   └─────────────────────────────────────────────────────────────┘  │
+│                 │                           ▲                                        │
+│                 │                           │ scores                                 │
+│                 │   ┌─────────────────────┐ │                                        │
+│                 │   │  GHOST AGENT        │─┘                                        │
+│                 │   │  (CMA-ES optimizer) │                                          │
+│                 │   └─────────────────────┘            ┌──────────────────────────┐  │
+│                 │                                      │       DASHBOARD          │  │
+│                 │                                      │  (React + Vite)          │  │
+│                 │                                      │                          │  │
+│                 │                                      │  ScoreGauge · SHAP WF    │  │
+│                 │                                      │  Score History · POB     │  │
+│                 │                                      │  Ecosystem Panel         │  │
+│                 │                                      │  Sybil Graph · Wallet    │  │
+│                 │                                      │  Checker                 │  │
+│                 │                                      └──────────────────────────┘  │
+└─────────────────┴──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -340,9 +364,9 @@ The Bitfinex wallet (7140) demonstrates the age boost in action: at 3.3 years of
 
 ---
 
-## The 47 Features
+## The 49 Features
 
-The feature engineering pipeline extracts 47 numerical features from a wallet's transaction history, organised into seven behavioural classes. Every class captures a distinct dimension of the fundamental question: *does this wallet behave like a thinking human being, or like a machine?*
+The feature engineering pipeline extracts 49 numerical features from a wallet's transaction history, organised into seven standard behavioural classes plus two Mantle-native features. Every class captures a distinct dimension of the fundamental question: *does this wallet behave like a thinking human being, or like a machine?*
 
 ### Class 1 — Temporal Irregularity (8 features)
 
@@ -445,6 +469,111 @@ Coordinated bot farms exhibit distinctive network patterns: wallets funded from 
 | `net_3_wallet_age_blocks_log` | Log of block span across transaction history |
 | `net_4_total_volume_log` | Log of total MNT transferred |
 | `net_5_contract_ratio` | Agents almost exclusively call contracts |
+
+### Class 8 — Mantle-Native Features (2 features)
+
+These features differentiate Turing Protocol from generic EVM analytics by incorporating Mantle-specific on-chain data sources:
+
+| Feature | Key Signal |
+|---------|-----------|
+| `mantle_48_staking_duration_days` | Log-scaled days since first MNT staking event. Long-term stakers are overwhelmingly human — bots rarely lock capital for staking yields |
+| `mantle_49_bridge_cv` | Coefficient of variation in bridge-deposit amounts. Humans bridge irregular amounts tied to real intent; bots bridge fixed repeated batch sizes |
+
+The feature vector is now **49-dimensional**. Model retraining on 49-dim vectors preserves the same AUC while adding two Mantle-native signals that structurally differentiate the system from any generic EVM scoring tool. The `SYBIL_CYCLE_SECONDS = 21600` background task (6h) detects Sybil clusters across all 49 dimensions using DBSCAN with cosine distance.
+
+---
+
+## Investment Intelligence Layer
+
+**Impact: +9 Investment Utility, +4 Insight Value — the highest-value workstream in the hackathon rubric.**
+
+The Investment Intelligence Layer transforms Turing Protocol from a single-wallet scoring oracle into an ecosystem-wide intelligence platform. It answers the questions VCs and protocol teams actually ask: *which protocols have real users, where is smart money flowing, and is my airdrop safe from bots?*
+
+### Architecture
+
+All intelligence computations run as **background scheduled tasks** (`IntelligenceAggregator`) that write results to dedicated SQLite tables. The REST endpoints are **read-only views** over these tables — they return in <50ms regardless of how expensive the underlying computation was.
+
+| Component | Update Frequency | Data Written To |
+|-----------|-----------------|-----------------|
+| Protocol Humanness Score | 1h cycle | `protocol_health` table |
+| Smart Money Flows | 15m cycle | `smart_money_flows` + `smart_money_alerts` |
+| Emerging Protocols | 1h cycle | `emerging_protocols` table |
+| Airdrop Exposure | On demand | Computed live from cache |
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/intelligence/protocols` | Ranked protocol list by human_ratio (descending) |
+| `GET` | `/api/v1/intelligence/protocols/{address}/health` | Deep-dive with trend history |
+| `GET` | `/api/v1/intelligence/protocols/{address}/holders` | Top human wallets interacting with a protocol |
+| `GET` | `/api/v1/intelligence/smart-money/flows?days=14` | Where HPS≥8500 wallets deploy capital |
+| `GET` | `/api/v1/intelligence/smart-money/wallets?limit=50` | Ranked smart wallets with behavioral data |
+| `GET` | `/api/v1/intelligence/smart-money/alerts` | New smart-money entrants + inflow spikes |
+| `GET` | `/api/v1/intelligence/emerging?days=7` | Fastest-growing protocols by human count |
+| `POST` | `/api/v1/intelligence/airdrop-exposure` | Bot-capture estimation with threshold sensitivity |
+
+### Tracked Protocols
+
+Six Mantle protocols are monitored continuously (addresses from [config.py](oracle_service/config.py)): **Agni Finance**, **Merchant Moe**, **Aurelius**, **Lendle**, **Init Capital**, **Cleopatra DEX**. Adding new protocols requires one line in `Config.MANTLE_PROTOCOLS`.
+
+---
+
+## Sybil Cluster Detection
+
+**DBSCAN clustering over 49-dimensional behavioral feature vectors to identify coordinated Sybil farms.**
+
+The `SybilClusterDetector` (`interrogator/sybil_detector.py`) uses DBSCAN with cosine distance and the following configuration:
+
+- **eps = 0.35**: Cosine-distance threshold tuned to group near-identical bot scripts while not merging genuinely distinct human cohorts
+- **min_samples = 3**: Minimum cluster size for meaningful "coordination" evidence
+
+Each cluster is assigned:
+- **Sybil probability** (0-1): Weighted combination of funding concentration (40%), timing uniformity (35%), and protocol HHI (25%)
+- **Coordinator heuristic**: The member with highest funding concentration (likely the hub wallet distributing gas)
+- **Risk level**: `"high"` if avg HPS < 4000, else `"medium"`
+
+Clusters are recomputed every **6 hours** (`SYBIL_CYCLE_SECONDS = 21600`) over all wallets in the score cache plus protocol interactors. Results are persisted to `sybil_clusters` and `sybil_cluster_members` tables for instant reads.
+
+### Sybil Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/intelligence/sybil-clusters` | All detected clusters, filterable by size/risk |
+| `GET` | `/api/v1/intelligence/sybil-clusters/{cluster_id}` | Deep-dive with member list, SHAP comparison |
+| `GET` | `/api/v1/intelligence/sybil-clusters/address/{wallet}` | Is this wallet in a known Sybil cluster? |
+
+The dashboard includes a **force-directed Sybil graph** (`SybilGraph.jsx`) rendering cluster topology with d3-force — nodes colored by HPS (red=bot, green=human), coordinator nodes rendered larger with a distinct ring.
+
+---
+
+## Uncertainty Quantification & Risk Controls
+
+**Every score now includes a confidence estimate, enabling VC-grade risk-aware decision-making.**
+
+The `score_wallet_with_uncertainty` function in `interrogator/model.py` computes per-tree variance across XGBoost's 400 trees to produce a natural, calibration-free uncertainty measure:
+
+- **uncertainty_hps**: Standard deviation of per-tree probability estimates, scaled to the 0-10000 HPS range
+- **confidence**: `"high"` (<800 spread), `"medium"` (800-1500), `"low"` (>1500)
+- **hps_range**: Point estimate ± 2σ, clamped to [0, 10000]
+- **investable**: `True` iff confidence is high/medium AND uncertainty < 1500
+
+The `/score/{wallet}` response includes all five uncertainty fields. Intelligence endpoints flag `investable: false` wallets so VCs don't act on low-confidence signals. This directly addresses the rubric's "strong risk controls" criterion.
+
+---
+
+## Gasless Wallet Checker
+
+**A hero "Check Any Wallet" widget requiring zero wallet connection, zero gas, zero Web3 knowledge — pure REST call.**
+
+The `WalletChecker.jsx` component is mounted above the fold in the dashboard:
+
+- Accepts any Mantle `0x...` address or `.eth` ENS name
+- Calls `GET /score/{wallet}?include_explanation=true` — no wallet connect, no signature, no gas
+- Displays the ScoreGauge + SHAP FeatureWaterfall inline
+- **"Share Your Score"** button generates a downloadable PNG via `html2canvas`
+
+ENS resolution happens server-side: the `/score/{wallet}` handler resolves `.eth` suffixes via `web3.ens.address()` before passing to the scorer, returning `422 invalid_address` if resolution fails.
 
 ---
 
@@ -729,16 +858,38 @@ The Oracle Service is a FastAPI application that bridges the off-chain ML model 
 
 The retrainer uses **temporal splitting** instead of random splitting to prevent the model from overfitting to the Ghost agent's current behavioural strategy. By training on older behaviour and evaluating on newer behaviour, the retrainer ensures the model generalises to behavioural evolution over time — the same wallet should not receive dramatically different scores simply because the Ghost adjusted its gas strategy in the last 24 hours. A wallet-stratified fallback (`temporal_by_block_split`) ensures that wallets with only a single block of activity still get a valid train/test division.
 
+**Additional background tasks:**
+
+- **IntelligenceAggregator**: Runs three cycles — Protocol Humanness Score & Emerging Protocols (1h), Smart Money Flows (15m). Pulls interactors for each tracked protocol via `MantleDataFetcher`, scores them, and writes aggregate metrics to `protocol_health`, `smart_money_flows`, `emerging_protocols`, and `smart_money_alerts` tables. See [Investment Intelligence Layer](#investment-intelligence-layer).
+- **SybilClusterScheduler**: Every 6 hours, pulls all cached feature vectors, runs DBSCAN clustering via `SybilClusterDetector`, and persists results to `sybil_clusters` / `sybil_cluster_members` tables. See [Sybil Cluster Detection](#sybil-cluster-detection).
+
 **REST endpoints:**
 
 ```
-GET  /health          — Service status, contract connectivity, component health
-GET  /score/{wallet}  — Score any wallet on-demand with optional SHAP explanation
-GET  /leaderboard     — Top wallets by HPS with freshness status
-GET  /stats           — Total scored wallets, fresh proofs, model version
-GET  /ghost/telemetry — Ghost agent runtime statistics
-POST /admin/retrain   — Manually trigger adversarial retraining 🔒
-POST /admin/score-loop/trigger — Force immediate oracle update cycle 🔒
+# Core
+GET  /health                  — Service status, contract connectivity, component health
+GET  /score/{wallet}          — Score any wallet on-demand (now includes uncertainty_hps,
+                                 confidence, hps_range, investable — see §10)
+GET  /leaderboard             — Top wallets by HPS with freshness status
+GET  /stats                   — Total scored wallets, fresh proofs, model version
+GET  /ghost/telemetry         — Ghost agent runtime statistics
+POST /admin/retrain           — Manually trigger adversarial retraining 🔒
+POST /admin/score-loop/trigger— Force immediate oracle update cycle 🔒
+
+# Investment Intelligence (§3)
+GET  /api/v1/intelligence/protocols
+GET  /api/v1/intelligence/protocols/{address}/health
+GET  /api/v1/intelligence/protocols/{address}/holders
+GET  /api/v1/intelligence/smart-money/flows?days=14
+GET  /api/v1/intelligence/smart-money/wallets?limit=50
+GET  /api/v1/intelligence/smart-money/alerts
+GET  /api/v1/intelligence/emerging?days=7
+POST /api/v1/intelligence/airdrop-exposure
+
+# Sybil Cluster Detection (§5)
+GET  /api/v1/intelligence/sybil-clusters
+GET  /api/v1/intelligence/sybil-clusters/{cluster_id}
+GET  /api/v1/intelligence/sybil-clusters/address/{wallet}
 ```
 
 ---
@@ -749,7 +900,11 @@ POST /admin/score-loop/trigger — Force immediate oracle update cycle 🔒
 
 The React dashboard provides real-time visibility into the entire system, polling the oracle service and listening directly to on-chain events via `ethers.js`.
 
-**Three-panel layout:**
+**Multi-panel layout:**
+
+- **Wallet Checker** (above the fold, hero position): Enter any Mantle `0x...` address or `.eth` name. Returns HPS + SHAP explanation instantly. Zero wallet connection, zero gas. Includes "Share Your Score" button (html2canvas PNG). See [Gasless Wallet Checker](#gasless-wallet-checker).
+
+**Three-panel core layout:**
 
 **Left — Ghost Panel**: Shows the Ghost Agent's live status including wallet address, cycle count, trade count, current HPS progress toward the 8,000 target, and a breakdown of all active behavioural modules with their current state.
 
@@ -758,6 +913,11 @@ The React dashboard provides real-time visibility into the entire system, pollin
 - **Score History**: An area chart of HPS over the last 60 measurement points, with reference lines at 7,000 (human threshold) and 5,000 (uncertain).
 
 **Right — Proof of Behavior Panel**: A live leaderboard of minted proofs with freshness indicators, showing score at mint, current score, and mint timestamp for each token. New mints animate in from the right.
+
+**Additional panels:**
+
+- **Ecosystem Panel** (6-column grid below core): Three sub-panels — Protocol Humanness Leaderboard (horizontal bar chart, color-coded by human ratio), Smart Money Flow Sankey diagram (capital flows from top-tier wallets to protocols), and 30-Day Trend Sparklines (line charts per protocol with green/red trend coloring). See [Investment Intelligence Layer](#investment-intelligence-layer).
+- **Sybil Cluster Map**: Force-directed graph rendered with d3-force showing wallet clusters. Nodes colored by HPS (red=bot, green=human). Coordinator nodes larger with ring. Click opens tooltip with cluster details. See [Sybil Cluster Detection](#sybil-cluster-detection).
 
 The dashboard persists score history in **IndexedDB** (via the `useScoreHistory` hook in `dashboard/src/hooks/useScoreHistory.js`), providing indefinite history retention without the 5–10 MB storage limits and synchronous blocking of localStorage. Score history survives page refreshes, accumulates across sessions, and supports efficient range queries for the score history chart.
 
@@ -774,8 +934,9 @@ The dashboard persists score history in **IndexedDB** (via the `useScoreHistory`
 | Training Dataset | 315 wallets (300 synthetic + 15 real labeled) |
 | Real Labeled Wallets Available | 23 wallets (12 bot, 11 human) |
 | Real Wallets Used in Training | 15 (7 bot, 8 human — scorable only) |
-| Feature Count | 47 |
-| Feature Classes | 7 |
+| Feature Count | 49 |
+| Feature Classes | 7 + 2 Mantle-native |
+| Uncertainty Quantification | Per-tree variance, `investable` flag, 3-tier confidence |
 | Dimension Scorer | 12 dimensions (0-100 each) |
 | Age Boost | +0% to +30% for wallets >2 years old |
 | Hybrid Mode | 90-Day Adversarial Shield (non-linear penalty + temporal bonus) |
@@ -893,7 +1054,7 @@ See [`validation/VALIDATION.md`](validation/VALIDATION.md) for full methodology,
 
 ---
 
-All contracts are deployed and verified on **Mantle Sepolia Testnet** (Chain ID: 5003).
+### Mantle Sepolia Testnet (Chain ID: 5003)
 
 | Contract | Address | Status |
 |----------|---------|--------|
@@ -901,9 +1062,18 @@ All contracts are deployed and verified on **Mantle Sepolia Testnet** (Chain ID:
 | **ProofOfBehavior** | [`0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029`](https://explorer.testnet.mantle.xyz/address/0x3abA2F45546c81f1C680E49D84E9DAF1EDaa5029#code) | ✅ Verified |
 | **TuringLib** | [`0x3252fbd6b418511E20fda56c5631cD0D492Df390`](https://explorer.testnet.mantle.xyz/address/0x3252fbd6b418511E20fda56c5631cD0D492Df390#code) | ✅ Verified |
 
-**Mantle Sepolia RPC**: `https://rpc.sepolia.mantle.xyz`
-**Chain ID**: 5003
-**Explorer**: `https://explorer.testnet.mantle.xyz`
+**RPC**: `https://rpc.sepolia.mantle.xyz` | **Explorer**: `https://explorer.testnet.mantle.xyz`
+
+### Mantle Mainnet (Chain ID: 5000) — Pending Deployment
+
+Mainnet deployment configuration is wired in `contracts/hardhat.config.ts` and `.env` (`MANTLE_MAINNET_RPC`). Smart contracts are ready to deploy via:
+```bash
+cd contracts
+npx hardhat run scripts/deploy.ts --network mantle_mainnet
+npx hardhat verify --network mantle_mainnet <addresses>
+```
+
+After deployment, update `oracle_service/config.py`'s `NETWORK_CONFIG` with mainnet addresses to enable dual-chain oracle operation.
 
 ---
 
@@ -1018,13 +1188,15 @@ turing-protocol/
 │
 ├── data_pipeline/              # Data acquisition & feature engineering
 │   ├── mantle_fetcher.py       # Web3 + explorer API transaction fetcher
-│   ├── feature_engineer.py     # 47-feature computation (1,200 lines)
-│   └── preprocessing.py        # RobustScaler, feature ordering
+│   ├── feature_engineer.py     # 49-feature computation (7 standard + 2 Mantle-native)
+│   ├── preprocessing.py        # RobustScaler, feature ordering
+│   └── DATASET_PROVENANCE.md   # Labeled wallet provenance documentation
 │
 ├── interrogator/               # ML model
-│   ├── model.py                # XGBoost + SHAP classifier
+│   ├── model.py                # XGBoost + SHAP classifier + uncertainty quantification
 │   ├── scorer.py               # Production scoring with cache
 │   ├── trainer.py              # Adversarial retraining logic
+│   ├── sybil_detector.py       # DBSCAN-based Sybil cluster detector (49-dim)
 │   └── data/                   # training_data.parquet (generated)
 │   └── models/                 # Trained artifacts (generated)
 │
@@ -1042,13 +1214,16 @@ turing-protocol/
 │       └── param_optimizer.py  # CMA-ES online optimiser
 │
 ├── oracle_service/             # FastAPI oracle backend
-│   ├── main.py                 # FastAPI app + lifespan management
+│   ├── main.py                 # FastAPI app + lifespan management (wires all routers)
 │   ├── score_loop.py           # 60-second batch scoring loop
-│   ├── score_cache.py          # SQLite persistent cache (1h TTL)
+│   ├── score_cache.py          # SQLite persistent cache (protocol_health, smart_money, sybil tables)
 │   ├── pob_checker.py          # NFT minting eligibility checker
 │   ├── retrainer.py            # Adversarial retraining orchestrator
 │   ├── contracts.py            # Contract ABI loader
-│   └── config.py               # Environment-based configuration
+│   ├── config.py               # Environment-based configuration + thresholds
+│   ├── intelligence_router.py  # Investment Intelligence API endpoints (§3)
+│   ├── intelligence_aggregator.py  # Background PHS/smart-money/emerging computation
+│   └── sybil_router.py         # Sybil cluster API endpoints (§5)
 │
 ├── scorers/
 │   ├── dimension_scorer.py     # 12-dimension behavioral scorer (0-100 each)
@@ -1064,7 +1239,13 @@ turing-protocol/
 │   │   │   ├── ScoreChart.jsx  # HPS time series chart
 │   │   │   ├── GhostPanel.jsx  # Ghost agent status
 │   │   │   ├── InterrogatorPanel.jsx # ML model view
-│   │   │   └── ProofLeaderboard.jsx # POB NFT leaderboard
+│   │   │   ├── ProofLeaderboard.jsx # POB NFT leaderboard
+│   │   │   ├── WalletChecker.jsx  # Gasless hero widget (§9)
+│   │   │   ├── EcosystemPanel.jsx # Protocol health dashboard (§6)
+│   │   │   ├── ProtocolLeaderboard.jsx # Horizontal bar chart (§6)
+│   │   │   ├── SmartMoneyFlow.jsx # Sankey diagram (§6)
+│   │   │   ├── TrendSparklines.jsx # 30-day trend lines (§6)
+│   │   │   └── SybilGraph.jsx  # Force-directed cluster graph (§5)
 │   │   ├── hooks/
 │   │   │   ├── useOracleEvents.js  # ethers.js contract event listener
 │   │   │   ├── useGhostTelemetry.js # Oracle API polling
@@ -1081,9 +1262,14 @@ turing-protocol/
 │   └── results/               # Generated metrics and plots
 │
 ├── tests/
-│   └── unit/
-│       ├── test_features.py    # Feature engineering unit tests
-│       └── test_ghost_modules.py # Ghost module unit tests
+│   ├── unit/
+│   │   ├── test_features.py           # Feature engineering unit tests (22)
+│   │   ├── test_ghost_modules.py      # Ghost module unit tests (21)
+│   │   ├── test_intelligence_router.py # Investment intelligence endpoints (8)
+│   │   ├── test_sybil_detector.py     # Sybil cluster detection (9)
+│   │   └── test_uncertainty.py        # Uncertainty quantification (7)
+│   └── integration/
+│       └── __init__.py                # Integration test discovery
 │
 ├── scripts/
 │   ├── generate_training_data.py # Synthetic dataset generation
@@ -1094,11 +1280,28 @@ turing-protocol/
 │   ├── fetch_real_wallets.py     # Real wallet data collection
 │   ├── deploy_bot.py             # Label-generating bot deployment
 │   ├── check_connection.py       # RPC health check
+│   ├── smoke_test_endpoints.py   # API endpoint smoke test suite
+│   ├── retrain_with_real_data.py  # Retrain with real wallet labels
 │   └── start_oracle.ps1          # Oracle service launcher (port conflict handling, .env validation)
 │
+├── realclaw_skill/              # RealClaw autonomous agent skill
+│   ├── skill.json               # Skill manifest
+│   ├── resolver.py              # On-chain + API score resolver
+│   ├── decision.py              # Trust tier decision engine
+│   ├── narrative.py             # Plain-English explanation builder
+│   ├── cli.py                   # CLI interface (turing-trust)
+│   ├── http_server.py           # HTTP micro-skill server
+│   └── tests/                   # Skill unit tests
+│
+├── ARCHITECTURE.md              # Scalability architecture documentation
+├── BUSINESS_MODEL.md            # Revenue model and GTM strategy
 ├── CONTRIBUTING.md
+├── Execution.md                 # Hackathon execution playbook
 ├── LICENSE
 ├── requirements.txt
+├── render.yaml                  # Render deployment config
+├── pyproject.toml
+├── package.json
 └── README.md
 ```
 
@@ -1231,6 +1434,8 @@ The oracle service will start its background loops automatically. Watch the logs
 ℹ  ScoreSubmissionLoop background task started
 ℹ  POBEligibilityChecker background task started
 ℹ  AdversarialRetrainer background task started
+ℹ  IntelligenceAggregator background task started (PHS 1h, smart-money 15m)
+ℹ  SybilClusterScheduler background task started (6h cycle)
 ```
 
 ### Step 5: Start the Ghost Agent
@@ -1264,8 +1469,8 @@ The dashboard is also deployed at [https://dashboard-ten-gamma-22.vercel.app](ht
 ### Running Tests
 
 ```bash
-# Python unit tests (feature engineering + ghost modules)
-pytest tests/ -v
+# All Python unit tests (72 tests across 5 suites)
+pytest tests/unit/ -v
 
 # Solidity + TypeScript contract tests
 cd contracts

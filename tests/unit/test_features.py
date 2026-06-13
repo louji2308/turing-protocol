@@ -166,22 +166,22 @@ class TestDiversityFeatures:
 
 
 class TestFeatureCount:
-    """The 47-feature invariant."""
+    """The 49-feature invariant."""
 
-    def test_always_47_features(self):
+    def test_always_49_features(self):
         engineer = BehavioralFeatureEngineer()
         df_bot = make_bot_df()
         feats = engineer.compute_all_features(df_bot, "0xbot")
-        assert len(feats) == 47, (
-            f"Expected 47 features, got {len(feats)}"
+        assert len(feats) == 49, (
+            f"Expected 49 features, got {len(feats)}"
         )
 
-    def test_human_also_47_features(self):
+    def test_human_also_49_features(self):
         engineer = BehavioralFeatureEngineer()
         df_human = make_human_df()
         feats = engineer.compute_all_features(df_human, df_human["from_addr"].iloc[0])
-        assert len(feats) == 47, (
-            f"Expected 47 features, got {len(feats)}"
+        assert len(feats) == 49, (
+            f"Expected 49 features, got {len(feats)}"
         )
 
     def test_temporal_has_8_features(self):
@@ -250,3 +250,20 @@ class TestEdgeCases:
         feats = engineer._gas_behavior_features(df)
         for v in feats.values():
             assert v == 0.5
+
+    @pytest.mark.asyncio
+    async def test_mantle_staking_features_empty_history(self):
+        engineer = BehavioralFeatureEngineer()
+        result = await engineer.compute_mantle_staking_features("0xnew")
+        assert isinstance(result, dict)
+        assert "mantle_48_staking_duration_days" in result
+        assert "mantle_49_bridge_cv" in result
+        assert result["mantle_48_staking_duration_days"] == 0.0
+        assert result["mantle_49_bridge_cv"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_dex_features_empty_history(self):
+        engineer = BehavioralFeatureEngineer()
+        result = await engineer.compute_dex_behavior_features("0xnew")
+        assert isinstance(result, dict)
+        assert result["dex_swap_count"] == 0

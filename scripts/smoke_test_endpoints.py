@@ -9,7 +9,7 @@ import json
 import sys
 import time
 
-BASE = "http://localhost:8080"
+BASE = "https://turing-oracle.onrender.com"
 TIMEOUT = 15
 SAMPLE_WALLET = "0x0000000000000000000000000000000000000001"
 SAMPLE_PROTOCOL = "0x319B69888b0d11cEC22caA5034e25FfFBDc88421"
