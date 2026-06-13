@@ -4,12 +4,12 @@ import numpy as np
 import time
 from pathlib import Path
 
-from interrogator.model import InterrogatorModel
+from interrogator.model import InterrogatorModel, score_wallet_with_uncertainty
 from data_pipeline.feature_engineer import BehavioralFeatureEngineer
 from data_pipeline.preprocessing import FeaturePreprocessor
 from data_pipeline.mantle_fetcher import MantleDataFetcher
 from scorers.dimension_scorer import DimensionScorer, hybrid_hps
-from oracle_service.score_cache import get_cached_score, get_cached_explanation, cache_score, clear_expired
+from oracle_service.score_cache import ScoreCache
 
 
 class WalletScorer:
@@ -36,6 +36,7 @@ class WalletScorer:
         self._model_loaded = False
 
         self.dim_scorer = DimensionScorer()
+        self._score_cache = ScoreCache()
 
         # Feature cache: {wallet_address: (features_dict, timestamp)}
         # Expire cache entries after 15 minutes
@@ -75,10 +76,8 @@ class WalletScorer:
         start = time.time()
 
         # 1. Check SQLite for full cached result (including explanation)
-        cached_db = get_cached_score(wallet_address, max_age_seconds=900) if use_cache else None
+        cached_db = self._score_cache.get_cached_score(wallet_address, max_age_seconds=900) if use_cache else None
         if cached_db is not None:
-            if return_explanation and "explanation" not in cached_db:
-                cached_db["explanation"] = get_cached_explanation(wallet_address)
             logger.debug(f"Using SQLite cache for {wallet_address[:10]}")
             return cached_db
 
@@ -90,6 +89,8 @@ class WalletScorer:
         X = self.preprocessor.transform(features_dict)
         self._ensure_model_loaded()
         ml_hps = self.model.score_wallet(X)
+
+        uncert = score_wallet_with_uncertainty(self.model.model, X)
 
         final_hps, ml_weight, dim_weight, dim_scores = hybrid_hps(
             ml_hps=ml_hps, features=features_dict,
@@ -111,6 +112,9 @@ class WalletScorer:
             "ml_hps": ml_hps,
             "probability": probability,
             "confidence": confidence,
+            "uncertainty_hps": uncert.get("uncertainty_hps", 0),
+            "hps_range": uncert.get("hps_range", [0, 10000]),
+            "investable": uncert.get("investable", False),
             "ml_weight": ml_weight,
             "dim_weight": dim_weight,
             "dimension_scores": dim_scores,
@@ -125,9 +129,9 @@ class WalletScorer:
             result["explanation"] = self.model.explain_wallet(X)
             result["fingerprint"] = self.model.compute_behavior_fingerprint(X)
 
-        # 4. Cache result (without explanation first, then with it on next cache cycle)
+        # 4. Cache result
         try:
-            cache_score(wallet_address, result)
+            self._score_cache.cache_score(wallet_address, result)
         except Exception:
             pass
 

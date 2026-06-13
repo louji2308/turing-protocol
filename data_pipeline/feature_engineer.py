@@ -14,21 +14,33 @@ class BehavioralFeatureEngineer:
         "0x000000000000aDdB49795b0f9bA5BC2986f0f5c0",
     }
 
+    AGNI_POOL_FACTORY = "0x25780dc8Fc3cfBD75F33bFDAB65e969b603b2035"
+    MERCHANT_MOE_ROUTER = "0xeaEE7EE68874218c3558b40063c42B82D3E7232a"
+    SWAP_EVENT_SIG = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+    STAKING_CONTRACT = "0xe6829d9a7eE3040e1276Fa75293Bde931859e8fA"
+
     """
-    Transforms raw transaction DataFrames into 47-dimensional
+    Transforms raw transaction DataFrames into 49-dimensional
     behavioral feature vectors for the Interrogator classifier.
 
     Feature Classes:
-    1. Temporal Irregularity (8 features)       — reaction time distribution
-    2. Gas Behavior (7 features)                — payment pattern analysis
-    3. Interaction Diversity (6 features)       — protocol breadth
-    4. Portfolio Behavior (9 features)          — human cognitive biases
-    5. Temporal Correlation to Events (5 features) — news reaction patterns
-    6. Behavioral Consistency (6 features)      — variance under stress
-    7. Network Graph (6 features)               — coordination detection
+    1. Temporal Irregularity (8 features)
+    2. Gas Behavior (7 features)
+    3. Interaction Diversity (6 features)
+    4. Portfolio Behavior (9 features)
+    5. Temporal Correlation to Events (5 features)
+    6. Behavioral Consistency (6 features)
+    7. Network Graph (6 features)
+    8. Mantle Native (2 features): staking duration, bridge CV
 
-    Total: 47 features
+    Total: 49 features
     """
+
+    def __init__(self):
+        self._fetcher = None
+
+    def set_fetcher(self, fetcher):
+        self._fetcher = fetcher
 
     def _is_aa_wallet(self, df: pd.DataFrame) -> bool:
         entry_point_calls = df[df["to_addr"].isin(self.ENTRY_POINT_ADDRESSES)]
@@ -43,11 +55,12 @@ class BehavioralFeatureEngineer:
     def compute_all_features(
         self,
         df: pd.DataFrame,
-        wallet_address: str
+        wallet_address: str,
+        include_mantle_native: bool = False
     ) -> Dict[str, float]:
         """
         Master function. Takes a transaction DataFrame and returns
-        a complete 47-feature dictionary.
+        a complete 47-feature dictionary (or 49 with mantle-native features).
 
         This is what the Interrogator model calls for each wallet.
         """
@@ -78,12 +91,68 @@ class BehavioralFeatureEngineer:
 
         features = self._adjust_gas_for_aa(features, is_aa)
 
-        assert len(features) == 47, (
-            f"Expected 47 features, got {len(features)}. "
+        # Append Mantle-native features (48-49) with safe defaults
+        features["mantle_48_staking_duration_days"] = 0.0
+        features["mantle_49_bridge_cv"] = 0.0
+
+        expected = 49
+        assert len(features) == expected, (
+            f"Expected {expected} features, got {len(features)}. "
             f"Something is missing."
         )
 
         return features
+
+    async def compute_mantle_staking_features(self, wallet: str) -> dict:
+        if self._fetcher is None:
+            return {"mantle_48_staking_duration_days": 0.0, "mantle_49_bridge_cv": 0.0}
+        stake_events = await self._fetcher.fetch_staking_events(wallet)
+        bridge_events = await self._fetcher.fetch_bridge_events(wallet)
+        import time
+        if stake_events:
+            first_stake_ts = min(e["timestamp"] for e in stake_events)
+            days = (time.time() - first_stake_ts) / 86400
+            staking_duration = float(np.log1p(max(days, 0)))
+        else:
+            staking_duration = 0.0
+        if len(bridge_events) >= 2:
+            amounts = [float(e["amount"]) for e in bridge_events]
+            bridge_cv = float(np.std(amounts) / max(np.mean(amounts), 1e-9))
+        else:
+            bridge_cv = 0.0
+        return {
+            "mantle_48_staking_duration_days": round(staking_duration, 4),
+            "mantle_49_bridge_cv": round(bridge_cv, 4),
+        }
+
+    async def compute_dex_behavior_features(self, wallet: str) -> dict:
+        if self._fetcher is None:
+            return {
+                "dex_swap_count": 0, "dex_slippage_cv": 0.0,
+                "dex_pairs_diversity": 0, "dex_after_hours_ratio": 0.0,
+                "dex_mev_victim_ratio": 0.0,
+            }
+        swaps = await self._fetcher.fetch_dex_swaps(
+            wallet, pools=[self.AGNI_POOL_FACTORY, self.MERCHANT_MOE_ROUTER]
+        )
+        if not swaps:
+            return {
+                "dex_swap_count": 0, "dex_slippage_cv": 0.0,
+                "dex_pairs_diversity": 0, "dex_after_hours_ratio": 0.0,
+                "dex_mev_victim_ratio": 0.0,
+            }
+        slippages = [s["slippage_bps"] for s in swaps if s.get("slippage_bps") is not None]
+        pairs = {(s["token_in"], s["token_out"]) for s in swaps}
+        from datetime import datetime
+        after_hours = sum(1 for s in swaps if not (9 <= datetime.utcfromtimestamp(s["timestamp"]).hour < 17))
+        sandwiched = sum(1 for s in swaps if s.get("was_sandwiched"))
+        return {
+            "dex_swap_count": len(swaps),
+            "dex_slippage_cv": round(float(np.std(slippages) / max(np.mean(slippages), 1e-9)), 4) if slippages else 0.0,
+            "dex_pairs_diversity": len(pairs),
+            "dex_after_hours_ratio": round(after_hours / len(swaps), 4),
+            "dex_mev_victim_ratio": round(sandwiched / len(swaps), 4),
+        }
 
     # =========================================================
     # FEATURE CLASS 1: TEMPORAL IRREGULARITY (8 features)

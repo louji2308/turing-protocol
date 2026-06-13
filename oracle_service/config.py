@@ -50,6 +50,37 @@ class OracleConfig:
     rpc_retry_delay: int = field(default_factory=lambda: int(os.getenv("RPC_RETRY_DELAY_SECONDS", "5")))
     admin_api_key: str = field(default_factory=lambda: os.getenv("ADMIN_API_KEY", ""))
 
+    # IMPL-01: Investment Intelligence thresholds
+    smart_money_hps_threshold: int = 8500
+    human_hps_threshold: int = 7000
+    bot_heavy_hps_threshold: int = 4000
+    protocol_sample_cap: int = 200
+    emerging_growth_threshold: float = 0.50
+    emerging_min_prior_humans: int = 5
+    intelligence_cycle_seconds: int = 3600
+    smart_money_cycle_seconds: int = 900
+    sybil_cycle_seconds: int = 21600
+
+    mantle_protocols: dict = field(default_factory=lambda: {
+        "Agni Finance":  "0x319B69888b0d11cEC22caA5034e25FfFBDc88421",
+        "Merchant Moe":  "0xeaEE7EE68874218c3558b40063c42B82D3E7232a",
+        "Aurelius":      "0xa3Dd459A9A75b8EFDa7f48Fc4Bae83038d2D20c9",
+        "Lendle":        "0xCFa5aE7c2CE8Fadc6426C1ff872cA45378Fb7cF",
+        "Init Capital":  "0x972B1E7EB42c8E0A2B0D76aA44a979c5dD1C7e6",
+        "Cleopatra DEX": "0xAAA16c016BF556fcD620328f0759252E29b2AB5B",
+    })
+
+    active_networks: List[str] = field(default_factory=lambda: ["mantle_testnet"])
+    network_config: dict = field(default_factory=lambda: {
+        "mantle_testnet": {
+            "rpc": "https://rpc.sepolia.mantle.xyz",
+            "chain_id": 5003,
+            "hps_oracle": os.getenv("HPS_ORACLE_ADDRESS", ""),
+            "proof_of_behavior": os.getenv("PROOF_OF_BEHAVIOR_ADDRESS", ""),
+            "explorer": "https://explorer.testnet.mantle.xyz",
+        },
+    })
+
     def get_operator_addresses(self) -> List[str]:
         from eth_account import Account
         addresses = []

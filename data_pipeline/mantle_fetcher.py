@@ -418,6 +418,143 @@ class MantleDataFetcher:
         df["is_known_protocol"] = df["protocol"] != "unknown"
         return df
 
+    async def fetch_protocol_interactors(
+        self, protocol_address: str, days: int = 30, max_results: int = 1000
+    ) -> list[str]:
+        protocol_address = Web3.to_checksum_address(protocol_address)
+        cutoff_ts = int(time.time()) - days * 86400
+        interactors: set[str] = set()
+        try:
+            latest = self.w3.eth.block_number
+            avg_block_time = 2.0
+            cutoff_block = max(0, latest - int(days * 86400 / avg_block_time))
+            batch_size = 2000
+            from_block = cutoff_block
+            while from_block < latest and len(interactors) < max_results:
+                to_block = min(from_block + batch_size, latest)
+                try:
+                    logs = self.w3.eth.get_logs({
+                        "address": protocol_address,
+                        "fromBlock": from_block,
+                        "toBlock": to_block,
+                    })
+                    for log in logs:
+                        tx = self.w3.eth.get_transaction(log["transactionHash"].hex())
+                        if tx and tx["from"]:
+                            interactors.add(tx["from"].lower())
+                except Exception:
+                    pass
+                from_block = to_block + 1
+        except Exception as e:
+            logger.debug(f"fetch_protocol_interactors eth_getLogs failed: {e}")
+            try:
+                txlist = self._fetch_from_explorer(protocol_address, max_results)
+                for tx in txlist:
+                    if tx.get("to", "").lower() == protocol_address.lower():
+                        interactors.add(tx.get("from", "").lower())
+            except Exception as e2:
+                logger.debug(f"fetch_protocol_interactors explorer fallback failed: {e2}")
+        return list(interactors)[:max_results]
+
+    async def fetch_staking_events(self, wallet: str) -> list[dict]:
+        wallet = Web3.to_checksum_address(wallet)
+        staking_contract = "0xe6829d9a7eE3040e1276Fa75293Bde931859e8fA"
+        try:
+            latest = self.w3.eth.block_number
+            logs = self.w3.eth.get_logs({
+                "address": staking_contract,
+                "fromBlock": max(0, latest - 100000),
+                "toBlock": "latest",
+            })
+            results = []
+            for log in logs:
+                tx = self.w3.eth.get_transaction(log["transactionHash"].hex())
+                if tx and tx["from"].lower() == wallet.lower():
+                    block = self.w3.eth.get_block(log["blockNumber"])
+                    results.append({
+                        "timestamp": block.timestamp,
+                        "amount": str(tx.value),
+                        "tx_hash": tx.hash.hex(),
+                    })
+            return results
+        except Exception as e:
+            logger.debug(f"fetch_staking_events error: {e}")
+            return []
+
+    async def fetch_bridge_events(self, wallet: str) -> list[dict]:
+        wallet = Web3.to_checksum_address(wallet)
+        bridge_contracts = [
+            "0x0000000000000000000000000000000000000000",
+        ]
+        results = []
+        try:
+            latest = self.w3.eth.block_number
+            for bc in bridge_contracts:
+                logs = self.w3.eth.get_logs({
+                    "address": bc,
+                    "fromBlock": max(0, latest - 200000),
+                    "toBlock": "latest",
+                })
+                for log in logs:
+                    tx = self.w3.eth.get_transaction(log["transactionHash"].hex())
+                    if tx and tx["from"].lower() == wallet.lower():
+                        block = self.w3.eth.get_block(log["blockNumber"])
+                        results.append({
+                            "timestamp": block.timestamp,
+                            "amount": str(tx.value),
+                            "direction": "deposit",
+                            "tx_hash": tx.hash.hex(),
+                        })
+        except Exception as e:
+            logger.debug(f"fetch_bridge_events error: {e}")
+        return results
+
+    async def fetch_dex_swaps(self, wallet: str, pools: list[str]) -> list[dict]:
+        wallet = Web3.to_checksum_address(wallet)
+        swap_sig = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+        results = []
+        try:
+            latest = self.w3.eth.block_number
+            for pool in pools:
+                pool = Web3.to_checksum_address(pool)
+                logs = self.w3.eth.get_logs({
+                    "address": pool,
+                    "fromBlock": max(0, latest - 50000),
+                    "toBlock": "latest",
+                    "topics": [swap_sig],
+                })
+                for log in logs:
+                    tx = self.w3.eth.get_transaction(log["transactionHash"].hex())
+                    if tx and tx["from"].lower() == wallet.lower():
+                        block = self.w3.eth.get_block(log["blockNumber"])
+                        results.append({
+                            "timestamp": block.timestamp,
+                            "token_in": log["topics"][2].hex() if len(log["topics"]) > 2 else "",
+                            "token_out": log["topics"][3].hex() if len(log["topics"]) > 3 else "",
+                            "slippage_bps": None,
+                            "was_sandwiched": False,
+                            "tx_hash": tx.hash.hex(),
+                        })
+        except Exception as e:
+            logger.debug(f"fetch_dex_swaps error: {e}")
+        return results
+
+    async def fetch_recent_transactions(self, wallet: str, days: int = 14) -> list[dict]:
+        wallet = Web3.to_checksum_address(wallet)
+        try:
+            import asyncio
+            df = await asyncio.to_thread(
+                self.fetch_wallet_transactions_adaptive, wallet, 5, 100, days
+            )
+            if df.empty:
+                return []
+            cutoff = int(time.time()) - days * 86400
+            df = df[df["timestamp"] >= cutoff]
+            return df.to_dict("records")
+        except Exception as e:
+            logger.debug(f"fetch_recent_transactions error: {e}")
+            return []
+
     def fetch_multiple_wallets(
         self, wallet_addresses: List[str], max_txs_each: int = 150
     ) -> Dict[str, pd.DataFrame]:

@@ -13,6 +13,10 @@ from sklearn.metrics import (
 from loguru import logger
 
 
+UNCERTAINTY_HIGH_MAX = 800
+UNCERTAINTY_MEDIUM_MAX = 1500
+
+
 class InterrogatorModel:
     """
     The core ML classifier for the Turing Protocol.
@@ -321,3 +325,43 @@ class InterrogatorModel:
     def reload(self):
         self.load()
         logger.success("Model reloaded from disk")
+
+
+def score_wallet_with_uncertainty(model: xgb.XGBClassifier, X: np.ndarray) -> dict:
+    booster = model.get_booster()
+    dmatrix = xgb.DMatrix(X)
+    n_trees = booster.num_boosted_rounds()
+
+    point_estimate = float(model.predict_proba(X)[0, 1])
+
+    try:
+        staged_margins = np.array([
+            booster.predict(dmatrix, iteration_range=(0, k), output_margin=True)[0]
+            for k in range(max(1, n_trees - 50), n_trees + 1)
+        ])
+        staged_probs = 1 / (1 + np.exp(-staged_margins))
+        std_dev = float(np.std(staged_probs))
+    except Exception:
+        margin = abs(point_estimate - 0.5)
+        std_dev = float((0.5 - margin) * 0.3)
+
+    uncertainty_hps = int(np.clip(std_dev * 10000, 0, 10000))
+
+    if uncertainty_hps < UNCERTAINTY_HIGH_MAX:
+        confidence = "high"
+    elif uncertainty_hps < UNCERTAINTY_MEDIUM_MAX:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    hps = int(point_estimate * 10000)
+    return {
+        "hps": hps,
+        "uncertainty_hps": uncertainty_hps,
+        "confidence": confidence,
+        "hps_range": [
+            int(np.clip(hps - 2 * uncertainty_hps, 0, 10000)),
+            int(np.clip(hps + 2 * uncertainty_hps, 0, 10000)),
+        ],
+        "investable": confidence in ("high", "medium") and uncertainty_hps < UNCERTAINTY_MEDIUM_MAX,
+    }

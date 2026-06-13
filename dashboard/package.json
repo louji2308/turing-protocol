@@ -14,7 +14,9 @@
     "lucide-react": "^0.451.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "recharts": "^2.15.3"
+    "recharts": "^2.15.3",
+    "d3": "^7.9.0",
+    "html2canvas": "^1.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

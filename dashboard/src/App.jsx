@@ -3,6 +3,8 @@ import GhostPanel from './components/GhostPanel';
 import InterrogatorPanel from './components/InterrogatorPanel';
 import ProofLeaderboard from './components/ProofLeaderboard';
 import RealclawTrustPanel from './components/RealclawTrustPanel';
+import { WalletChecker } from './components/WalletChecker';
+import { EcosystemPanel } from './components/EcosystemPanel';
 import { useOracleEvents } from './hooks/useOracleEvents';
 import { useGhostTelemetry } from './hooks/useGhostTelemetry';
 import { useScoreHistory } from './hooks/useScoreHistory';
@@ -197,6 +199,16 @@ export default function App() {
           totalMinted={totalMinted}
         />
       </main>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 'var(--space-4)',
+        marginTop: 'var(--space-4)',
+      }}>
+        <WalletChecker />
+        <EcosystemPanel />
+      </div>
 
       {!hasValidAddress && (
         <div style={{

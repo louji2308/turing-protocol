@@ -298,6 +298,7 @@ Human trading is bursty and news-driven. Uses formal burstiness framework (Goh &
 - **Human** (70-100): Positive burstiness, irregular session gaps
 - **Spam bot** (0-30): No burstiness, uniform activity
 - **Careful bot** (20-50): Programmed pauses for major triggers
+
 #### 10. IP / Fingerprint (neutral: 50, weight=0.0)
 
 Cannot be determined from on-chain data alone. Neutral by default. The dimension weight is **hard-set to 0.0** in `dimension_scorer.py`, meaning this dimension contributes zero to the composite average regardless of its score. This preserves the interface for future cross-chain IP-level data sources without degrading the current scoring pipeline.
@@ -305,6 +306,7 @@ Cannot be determined from on-chain data alone. Neutral by default. The dimension
 #### 11. Cross-Chain Patterns (neutral: 50, weight=0.0)
 
 Requires multi-chain data sources. Neutral by default. Like `ip_fingerprint`, the cross-chain dimension is **hard-weighted at 0.0**, retained in the dimension interface for future multi-chain integration but excluded from the composite score computation. Both neutral dimensions remain visible in the `dimension_scores` output for transparency.
+
 #### 12. Transaction Graph (0-100)
 Wallet interaction topology. Humans interact with a diverse web of counterparties; bots follow star/chain patterns.
 - **Human** (70-100): Varied recipients, low top-1 concentration, some EOA sends

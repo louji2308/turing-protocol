@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
@@ -28,9 +29,46 @@ from oracle_service.contracts import ContractLoader
 from oracle_service.score_loop import ScoreSubmissionLoop
 from oracle_service.pob_checker import POBEligibilityChecker
 from oracle_service.retrainer import AdversarialRetrainer
+from oracle_service.intelligence_router import router as intelligence_router
+from oracle_service.intelligence_aggregator import IntelligenceAggregator
+from oracle_service.sybil_router import router as sybil_router
+from oracle_service.score_cache import ScoreCache
+from interrogator.sybil_detector import SybilClusterDetector
 
 
 config = OracleConfig()
+
+
+async def _run_sybil_scheduler(cache: ScoreCache, interrogator_inst):
+    await asyncio.sleep(120)
+    detector = SybilClusterDetector()
+    while True:
+        try:
+            wallet_features = cache.get_all_feature_vectors()
+            if len(wallet_features) >= 3:
+                result = detector.detect_clusters(wallet_features)
+                for cid, cdata in result.get("clusters", {}).items():
+                    members_with_hps = []
+                    for addr in cdata["members"]:
+                        s = cache.get_cached_score(addr)
+                        members_with_hps.append({
+                            "address": addr,
+                            "hps": s["hps"] if s else 5000,
+                        })
+                    cache.upsert_sybil_cluster(
+                        cluster_id=cid,
+                        size=cdata["size"],
+                        avg_hps=cdata["avg_hps"],
+                        sybil_probability=cdata["sybil_probability"],
+                        coordinator=cdata["coordinator"],
+                        risk_level=cdata["risk_level"],
+                        members_json=json.dumps(members_with_hps),
+                        computed_at=int(time.time()),
+                    )
+                logger.info(f"Sybil cycle: {len(result['clusters'])} clusters, {len(result['noise'])} noise wallets")
+        except Exception as e:
+            logger.error(f"Sybil cycle failed: {e}")
+        await asyncio.sleep(config.sybil_cycle_seconds)
 
 config_errors = OracleConfig.validate(config)
 if config_errors:
@@ -85,6 +123,10 @@ def require_admin_auth(credentials: Optional[HTTPAuthorizationCredentials] = Dep
 class ScoreResponse(BaseModel):
     wallet: str
     hps: int
+    uncertainty_hps: int = 0
+    confidence: str = "low"
+    hps_range: tuple[int, int] = (0, 10000)
+    investable: bool = False
     error: Optional[str] = None
     details: Optional[dict] = None
     explanation: Optional[list] = None
@@ -153,6 +195,25 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(pob_checker.run())
         logger.info("POBEligibilityChecker background task started")
 
+    if interrogator:
+        app.state.scorer_instance = scorer
+        app.state.fetcher = fetcher if 'fetcher' in dir() else None
+
+    score_cache = ScoreCache()
+    app.state.cache = score_cache
+
+    if app.state.fetcher and app.state.scorer_instance:
+        intelligence_agg = IntelligenceAggregator(
+            cache=score_cache,
+            fetcher=app.state.fetcher,
+            scorer=interrogator,
+        )
+        asyncio.create_task(intelligence_agg.run_forever())
+        logger.info("IntelligenceAggregator background task started")
+
+        asyncio.create_task(_run_sybil_scheduler(score_cache, interrogator))
+        logger.info("SybilClusterScheduler background task started")
+
     if interrogator and oracle_contract and scorer:
         retrainer = AdversarialRetrainer(
             interrogator=interrogator,
@@ -180,6 +241,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.include_router(intelligence_router)
+app.include_router(sybil_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -236,10 +300,25 @@ async def stats():
     }
 
 
+async def _resolve_address(raw: str) -> str:
+    if raw.endswith(".eth"):
+        try:
+            resolved = w3.ens.address(raw)
+            if not resolved:
+                raise HTTPException(status_code=422, detail="invalid_address: ENS name does not resolve")
+            return resolved
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=422, detail="invalid_address: ENS resolution failed")
+    if not Web3.is_address(raw):
+        raise HTTPException(status_code=422, detail="invalid_address: not a valid 0x address")
+    return Web3.to_checksum_address(raw)
+
+
 @app.get("/score/{wallet}", response_model=ScoreResponse)
 async def score_wallet(wallet: str, include_explanation: bool = False):
-    if not Web3.is_address(wallet):
-        raise HTTPException(status_code=400, detail=f"Invalid address: {wallet}")
+    resolved = await _resolve_address(wallet)
     if scorer is None:
         raise HTTPException(status_code=503, detail="Scorer not available")
 
@@ -251,8 +330,15 @@ async def score_wallet(wallet: str, include_explanation: bool = False):
         if err:
             raise HTTPException(status_code=400, detail=err)
         return ScoreResponse(
-            wallet=Web3.to_checksum_address(wallet),
+            wallet=resolved,
             hps=int(result.get("hps", 0)),
+            uncertainty_hps=int(result.get("uncertainty_hps", 0)),
+            confidence=str(result.get("confidence", "low")),
+            hps_range=(
+                int(result.get("hps_range", [0, 10000])[0]),
+                int(result.get("hps_range", [0, 10000])[1]),
+            ),
+            investable=bool(result.get("investable", False)),
             details=result.get("raw"),
             explanation=result.get("explanation"),
         )
