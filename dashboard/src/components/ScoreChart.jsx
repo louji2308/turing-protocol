@@ -65,7 +65,7 @@ export default function ScoreChart({ data = [], height = 160 }) {
           fontFamily: 'var(--font-mono)',
           opacity: 0.7,
         }}>
-          7000 \u2500 HUMAN
+          7000 ─ HUMAN
         </span>
         <span style={{
           fontSize: '9px',
@@ -75,7 +75,7 @@ export default function ScoreChart({ data = [], height = 160 }) {
           opacity: 0.7,
           marginTop: 8,
         }}>
-          5000 \u2500 UNCERTAIN
+          5000 ─ UNCERTAIN
         </span>
       </div>
 

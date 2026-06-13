@@ -91,7 +91,7 @@ export default function InterrogatorPanel({
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div className="panel-header">
           <div className="panel-title">THE INTERROGATOR</div>
-          <div className="panel-subtitle">XGBoost behavioral classifier \u00B7 SHAP explainer</div>
+          <div className="panel-subtitle">XGBoost behavioral classifier · SHAP explainer</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <span className="badge" style={{ background: connBadge.bg, borderColor: connBadge.border, color: connBadge.color }}>

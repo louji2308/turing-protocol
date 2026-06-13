@@ -27,7 +27,7 @@ export default function ProofLeaderboard({
           <span className="badge badge-purple">ERC-8004</span>
         </div>
         <div className="panel-subtitle">
-          Soulbound behavioral proofs \u00B7 Mantle mainnet
+          Soulbound behavioral proofs · Mantle mainnet
         </div>
       </div>
 
@@ -67,11 +67,11 @@ export default function ProofLeaderboard({
               How Proof of Behavior works
             </p>
             <p>
-              Any wallet on Mantle that maintains a Human Probability Score \u2265 7000 for 72+ consecutive hours,
+              Any wallet on Mantle that maintains a Human Probability Score ≥ 7000 for 72+ consecutive hours,
               with a transaction history of at least 50 interactions, qualifies for a soulbound Proof of Behavior NFT.
             </p>
             <p style={{ marginTop: 8 }}>
-              The NFT is non-transferable. It encodes the wallet's behavioral fingerprint \u2014 a SHAP-derived hash of
+              The NFT is non-transferable. It encodes the wallet&apos;s behavioral fingerprint — a SHAP-derived hash of
               the top 10 behavioral signals at the time of certification.
             </p>
           </div>
@@ -204,7 +204,7 @@ export default function ProofLeaderboard({
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px' }}>
-          SOULBOUND \u00B7 NON-TRANSFERABLE
+          SOULBOUND · NON-TRANSFERABLE
         </span>
         <a
           href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${import.meta.env.VITE_POB_ADDRESS || ''}`}

@@ -1,10 +1,20 @@
 import { Sankey, Tooltip, ResponsiveContainer, Rectangle } from 'recharts';
 
+const cardStyle = {
+  background: 'var(--surface-01)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-4)',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 260,
+};
+
 export function SmartMoneyFlow({ flows }) {
   if (!flows || !flows.top_flows?.length) {
     return (
-      <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-center text-slate-400 text-sm h-[260px]">
-        Smart money flow data loading...
+      <div style={{ ...cardStyle, alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+        Smart money flow loading…
       </div>
     );
   }
@@ -20,24 +30,26 @@ export function SmartMoneyFlow({ flows }) {
   }));
 
   return (
-    <div className="bg-slate-800 rounded-xl p-4">
-      <h3 className="text-white font-semibold mb-1">Smart Money Flow (14d)</h3>
-      <p className="text-xs text-slate-400 mb-2">
-        Where wallets with HPS &ge; {flows.threshold_hps} are deploying capital
-      </p>
-      <ResponsiveContainer width="100%" height={240}>
-        <Sankey
-          data={{ nodes, links }}
-          node={<Rectangle radius={[2, 2, 2, 2]} fill="#3b82f6" />}
-          link={{ stroke: '#475569', strokeOpacity: 0.5 }}
-          margin={{ top: 10, bottom: 10, left: 10, right: 80 }}
-        >
-          <Tooltip
-            formatter={(value) => `${value.toFixed(2)} MNT`}
-            contentStyle={{ background: '#1e293b', border: 'none', color: '#fff' }}
-          />
-        </Sankey>
-      </ResponsiveContainer>
+    <div style={cardStyle}>
+      <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--text-primary)' }}>Smart Money Flow</div>
+      <div className="label-caps" style={{ marginTop: 2, marginBottom: 'var(--space-3)' }}>
+        14d · where HPS ≥ {flows.threshold_hps} deploys capital
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <ResponsiveContainer width="100%" height={210}>
+          <Sankey
+            data={{ nodes, links }}
+            node={<Rectangle radius={[2, 2, 2, 2]} fill="var(--accent-purple)" />}
+            link={{ stroke: 'var(--accent-purple)', strokeOpacity: 0.22 }}
+            margin={{ top: 10, bottom: 10, left: 10, right: 90 }}
+          >
+            <Tooltip
+              formatter={(value) => `${value.toFixed(2)} MNT`}
+              contentStyle={{ background: 'rgba(20,23,38,0.92)', border: '1px solid var(--border-default)', borderRadius: 8, color: '#fff' }}
+            />
+          </Sankey>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
