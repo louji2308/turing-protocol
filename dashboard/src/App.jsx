@@ -5,6 +5,7 @@ import ProofLeaderboard from './components/ProofLeaderboard';
 import RealclawTrustPanel from './components/RealclawTrustPanel';
 import { WalletChecker } from './components/WalletChecker';
 import { EcosystemPanel } from './components/EcosystemPanel';
+import { SybilGraph } from './components/SybilGraph';
 import { useOracleEvents } from './hooks/useOracleEvents';
 import { useGhostTelemetry } from './hooks/useGhostTelemetry';
 import { useScoreHistory } from './hooks/useScoreHistory';
@@ -16,6 +17,7 @@ const NETWORK_NAME = import.meta.env.VITE_NETWORK_NAME || 'Mantle Sepolia';
 
 export default function App() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [sybilClusters, setSybilClusters] = useState({});
 
   const {
     ghostScore,
@@ -56,6 +58,14 @@ export default function App() {
   useEffect(() => {
     const t = setTimeout(() => setIsLoaded(true), 100);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const api = import.meta.env.VITE_API_URL || 'https://turing-oracle.onrender.com';
+    fetch(`${api}/api/v1/intelligence/sybil-clusters`)
+      .then((r) => r.ok ? r.json() : Promise.resolve({}))
+      .then((data) => setSybilClusters(data?.clusters ?? {}))
+      .catch(() => { /* API not available */ });
   }, []);
 
   const hasValidAddress = GHOST_ADDRESS !== '0x0000000000000000000000000000000000000000';
@@ -208,6 +218,10 @@ export default function App() {
       }}>
         <WalletChecker />
         <EcosystemPanel />
+      </div>
+
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        <SybilGraph clusters={sybilClusters} />
       </div>
 
       {!hasValidAddress && (
