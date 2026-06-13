@@ -11,9 +11,7 @@ import { useGhostTelemetry } from './hooks/useGhostTelemetry';
 import { useScoreHistory } from './hooks/useScoreHistory';
 import { useRealclawTrust } from './hooks/useRealclawTrust';
 import { ExternalLink, Github, Activity } from 'lucide-react';
-
-const GHOST_ADDRESS = import.meta.env.VITE_GHOST_ADDRESS || '0x0000000000000000000000000000000000000000';
-const NETWORK_NAME = import.meta.env.VITE_NETWORK_NAME || 'Mantle Sepolia';
+import { GHOST_ADDRESS, NETWORK_NAME, ORACLE_API, EXPLORER_URL, ORACLE_ADDRESS } from './config';
 
 export default function App() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -61,11 +59,43 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const api = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-    fetch(`${api}/api/v1/intelligence/sybil-clusters`)
-      .then((r) => r.ok ? r.json() : Promise.resolve({}))
-      .then((data) => setSybilClusters(data?.clusters ?? {}))
-      .catch(() => { /* API not available */ });
+    let cancelled = false;
+    const loadClusters = async () => {
+      try {
+        const listResp = await fetch(`${ORACLE_API}/api/v1/intelligence/sybil-clusters`);
+        if (!listResp.ok) return; // 503 until the sybil cycle has run
+        const summaries = await listResp.json();
+        const list = Array.isArray(summaries) ? summaries : (summaries?.clusters ? Object.values(summaries.clusters) : []);
+        // The summary list omits members, so hydrate each cluster with its
+        // member detail to build the graph's node map.
+        const details = await Promise.all(
+          list.map((c) =>
+            fetch(`${ORACLE_API}/api/v1/intelligence/sybil-clusters/${c.cluster_id}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .catch(() => null)
+          )
+        );
+        if (cancelled) return;
+        const map = {};
+        details.forEach((d) => {
+          if (d && d.cluster_id) {
+            map[d.cluster_id] = {
+              members: d.members || [],
+              coordinator: d.coordinator,
+              sybil_probability: d.sybil_probability,
+              risk_level: d.risk_level,
+              avg_hps: d.avg_hps,
+              size: d.size,
+            };
+          }
+        });
+        setSybilClusters(map);
+      } catch {
+        /* API not available */
+      }
+    };
+    loadClusters();
+    return () => { cancelled = true; };
   }, []);
 
   const hasValidAddress = GHOST_ADDRESS !== '0x0000000000000000000000000000000000000000';
@@ -160,7 +190,7 @@ export default function App() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <a
-              href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${import.meta.env.VITE_ORACLE_ADDRESS || ''}`}
+              href={`${EXPLORER_URL}/address/${ORACLE_ADDRESS}`}
               target="_blank"
               rel="noopener noreferrer"
               className="header-link"

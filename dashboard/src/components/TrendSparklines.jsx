@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
-
-const ORACLE_URL = import.meta.env.VITE_ORACLE_URL || 'http://localhost:8080';
+import { ORACLE_API as ORACLE_URL } from '../config';
 
 const cardStyle = {
   background: 'var(--surface-01)',

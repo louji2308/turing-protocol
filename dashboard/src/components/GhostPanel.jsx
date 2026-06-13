@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Activity, Zap, Eye, Clock } from 'lucide-react';
+import { EXPLORER_URL } from '../config';
 
 function Skeleton({ ghostAddress, currentHPS, ghostStatus }) {
   return (
@@ -25,22 +26,14 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
   const [recentActions, setRecentActions] = useState([]);
   const [tick, setTick] = useState(0);
 
-  const isRunning = ghostStatus?.running ?? true;
+  const isRunning = ghostStatus?.running ?? false;
   const cycles = ghostStatus?.cycles ?? '\u2014';
   const trades = ghostStatus?.trades ?? '\u2014';
   const timingState = ghostStatus?.timing_state ?? '\u2014';
   const optimizerGen = ghostStatus?.optimizer?.generation ?? '\u2014';
   const optimizerBestHPS = ghostStatus?.optimizer?.best_hps ?? '\u2014';
 
-  const demoActions = [
-    { type: 'swap', detail: 'MNT \u2192 USDC', delay: '4.2s', status: 'success', time: '2m ago' },
-    { type: 'explore', detail: 'Agni Finance', delay: '\u2014', status: 'success', time: '8m ago' },
-    { type: 'swap', detail: 'USDC \u2192 MNT', delay: '31.7s', status: 'success', time: '14m ago' },
-    { type: 'lp', detail: 'USDC/USDT pool', delay: '9.1s', status: 'success', time: '22m ago' },
-    { type: 'swap', detail: 'MNT \u2192 WETH', delay: '7.8s', status: 'success', time: '38m ago' },
-  ];
-
-  const actions = ghostStatus?.recent_actions ?? demoActions;
+  const actions = ghostStatus?.recent_actions ?? [];
 
   const modules = [
     {
@@ -143,7 +136,7 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
           </div>
         </div>
         <a
-          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet.mantle.xyz'}/address/${ghostAddress}`}
+          href={`${EXPLORER_URL}/address/${ghostAddress}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -240,6 +233,19 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div className="label-caps">Recent Activity</div>
         <div className="scroll-area" style={{ flex: 1 }}>
+          {actions.length === 0 ? (
+            <div style={{
+              height: '100%', minHeight: 90, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 6, textAlign: 'center',
+              border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-4)',
+            }}>
+              <Activity size={18} color="var(--text-disabled)" />
+              <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', maxWidth: 200, lineHeight: 1.5 }}>
+                Live action feed requires the ghost agent telemetry endpoint. On-chain score is tracked above.
+              </div>
+            </div>
+          ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {actions.map((action, i) => (
               <div
@@ -271,6 +277,7 @@ export default function GhostPanel({ ghostAddress, currentHPS = 5000, ghostStatu
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

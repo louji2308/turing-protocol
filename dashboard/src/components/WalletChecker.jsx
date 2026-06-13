@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Search, Sparkles, Download, AlertTriangle, ShieldCheck } from 'lucide-react';
 import ScoreGauge from './ScoreGauge';
 import FeatureWaterfall from './FeatureWaterfall';
+import { ORACLE_API as ORACLE_URL, GHOST_ADDRESS } from '../config';
 
-const ORACLE_URL = import.meta.env.VITE_ORACLE_URL || 'http://localhost:8080';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$|^[a-zA-Z0-9-]+\.eth$/;
 
 function humanizeError(code) {
@@ -56,7 +56,12 @@ export function WalletChecker({ loading: externalLoading = false }) {
   };
 
   const isLoading = loading || externalLoading;
-  const samples = ['vitalik.eth', '0x0000...dEaD', 'ghost.eth'];
+  // Real, scoreable Mantle Sepolia addresses: the protocol ghost agent (has a
+  // live HPS) and the oracle operator wallet.
+  const samples = [
+    { label: 'Ghost agent', value: GHOST_ADDRESS },
+    { label: 'Operator', value: '0x8Dca73df43Af5B7982B8bB86f61fC624ced74D89' },
+  ];
 
   return (
     <div className="panel" role="form" aria-label="Wallet humanity checker">
@@ -118,8 +123,9 @@ export function WalletChecker({ loading: externalLoading = false }) {
         <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>Try</span>
         {samples.map((s) => (
           <button
-            key={s}
-            onClick={() => setAddress(s)}
+            key={s.value}
+            onClick={() => setAddress(s.value)}
+            title={s.value}
             style={{
               padding: '3px 10px', borderRadius: 20,
               border: '1px solid var(--border-subtle)', background: 'var(--surface-01)',
@@ -128,7 +134,7 @@ export function WalletChecker({ loading: externalLoading = false }) {
               transition: 'all var(--duration-fast) ease',
             }}
           >
-            {s}
+            {s.label}
           </button>
         ))}
       </div>

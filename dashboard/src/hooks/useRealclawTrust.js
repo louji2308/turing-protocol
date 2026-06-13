@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { ORACLE_API } from '../config';
 
 const TRUST_TIERS = {
   lenient: 3000,
@@ -18,7 +19,7 @@ export function useRealclawTrust(ghostAddress) {
   const [tier, setTier] = useState('standard');
   const [includeNarrative, setIncludeNarrative] = useState(true);
 
-  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
+  const apiBase = ORACLE_API;
   const checksRef = useRef(checks);
   checksRef.current = checks;
 

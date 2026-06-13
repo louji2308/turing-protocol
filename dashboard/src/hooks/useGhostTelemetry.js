@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ORACLE_API, POLL_INTERVAL_MS } from '../config';
 
 export function useGhostTelemetry(ghostAddress) {
   const [telemetry, setTelemetry] = useState(null);
@@ -8,7 +9,7 @@ export function useGhostTelemetry(ghostAddress) {
   const [lastFetched, setLastFetched] = useState(null);
   const [apiAvailable, setApiAvailable] = useState(false);
 
-  const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
+  const apiBase = ORACLE_API;
 
   const fetchTelemetry = useCallback(async () => {
     if (!ghostAddress || ghostAddress === '0x0000000000000000000000000000000000000000') return;
@@ -51,7 +52,7 @@ export function useGhostTelemetry(ghostAddress) {
 
   useEffect(() => {
     fetchTelemetry();
-    const pollInterval = Number(import.meta.env.VITE_POLL_INTERVAL_MS) || 30000;
+    const pollInterval = POLL_INTERVAL_MS;
     const interval = setInterval(fetchTelemetry, pollInterval);
     return () => clearInterval(interval);
   }, [fetchTelemetry]);

@@ -3,8 +3,7 @@ import { Activity } from 'lucide-react';
 import { ProtocolLeaderboard } from './ProtocolLeaderboard';
 import { SmartMoneyFlow } from './SmartMoneyFlow';
 import { TrendSparklines } from './TrendSparklines';
-
-const ORACLE_URL = import.meta.env.VITE_ORACLE_URL || 'http://localhost:8080';
+import { ORACLE_API as ORACLE_URL } from '../config';
 
 function useProtocolHealthData() {
   const [protocols, setProtocols] = useState([]);
