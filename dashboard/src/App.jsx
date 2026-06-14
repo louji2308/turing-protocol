@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import GhostPanel from './components/GhostPanel';
 import InterrogatorPanel from './components/InterrogatorPanel';
 import ProofLeaderboard from './components/ProofLeaderboard';
@@ -6,16 +6,19 @@ import RealclawTrustPanel from './components/RealclawTrustPanel';
 import { WalletChecker } from './components/WalletChecker';
 import { EcosystemPanel } from './components/EcosystemPanel';
 import { SybilGraph } from './components/SybilGraph';
+import ParticleField from './components/ParticleField';
 import { useOracleEvents } from './hooks/useOracleEvents';
 import { useGhostTelemetry } from './hooks/useGhostTelemetry';
 import { useScoreHistory } from './hooks/useScoreHistory';
 import { useRealclawTrust } from './hooks/useRealclawTrust';
-import { ExternalLink, Github, Activity } from 'lucide-react';
+import { ExternalLink, Github, Zap } from 'lucide-react';
 import { GHOST_ADDRESS, NETWORK_NAME, ORACLE_API, EXPLORER_URL, ORACLE_ADDRESS } from './config';
 
 export default function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [sybilClusters, setSybilClusters] = useState({});
+  const [scrolled, setScrolled] = useState(false);
+  const headerRef = useRef(null);
 
   const {
     ghostScore,
@@ -59,11 +62,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const loadClusters = async () => {
       try {
         const listResp = await fetch(`${ORACLE_API}/api/v1/intelligence/sybil-clusters`);
-        if (!listResp.ok) return; // 503 until the sybil cycle has run
+        if (!listResp.ok) return;
         const summaries = await listResp.json();
         const list = Array.isArray(summaries) ? summaries : (summaries?.clusters ? Object.values(summaries.clusters) : []);
         const details = await Promise.all(
@@ -97,15 +108,16 @@ export default function App() {
   }, []);
 
   const hasValidAddress = GHOST_ADDRESS !== '0x0000000000000000000000000000000000000000';
-
   const isLive = connectionStatus === 'connected';
 
   return (
     <>
+      <ParticleField />
       <div className="ambient-bg" aria-hidden="true">
         <div className="ambient-orb a" />
         <div className="ambient-orb b" />
         <div className="ambient-orb c" />
+        <div className="ambient-orb d" />
       </div>
 
       <div style={{
@@ -117,28 +129,33 @@ export default function App() {
         gap: 'var(--space-4)',
         boxSizing: 'border-box',
       }}>
-        <header style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 'var(--space-4)',
-          padding: 'var(--space-4) var(--space-5)',
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 30%), var(--bg-panel)',
-          borderRadius: 'var(--radius-xl)',
-          border: '1px solid var(--border-default)',
-          boxShadow: 'var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.05)',
-          backdropFilter: 'blur(20px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-          position: 'sticky', top: 'var(--space-3)', zIndex: 50,
-          animation: 'fade-in-up 300ms var(--ease-out) both',
-        }}>
+        <header
+          ref={headerRef}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 'var(--space-4)',
+            padding: 'var(--space-4) var(--space-5)',
+            background: scrolled
+              ? 'linear-gradient(180deg, rgba(8,10,20,0.9), rgba(8,10,20,0.75))'
+              : 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 30%), var(--bg-panel)',
+            borderRadius: 'var(--radius-xl)',
+            border: '1px solid var(--border-default)',
+            boxShadow: scrolled ? 'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.05)' : 'var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.05)',
+            backdropFilter: scrolled ? 'blur(24px) saturate(180%)' : 'blur(8px) saturate(140%)',
+            WebkitBackdropFilter: scrolled ? 'blur(24px) saturate(180%)' : 'blur(8px) saturate(140%)',
+            position: 'sticky', top: 'var(--space-3)', zIndex: 50,
+            animation: 'fade-in-up 300ms var(--ease-out) both',
+            transition: 'background var(--duration-normal) ease, backdrop-filter var(--duration-normal) ease, box-shadow var(--duration-normal) ease',
+          }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
             <div style={{
               position: 'relative',
-              width: 42, height: 42, borderRadius: 12,
-              background: 'linear-gradient(135deg, var(--accent-purple-dim), var(--accent-cyan))',
+              width: 48, height: 48, borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(124,58,237,0.8), rgba(79,70,229,0.9))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(139,124,255,0.45), inset 0 1px 0 rgba(255,255,255,0.3)',
+              boxShadow: '0 0 30px rgba(124,58,237,0.5), 0 0 60px rgba(124,58,237,0.2), inset 0 1px 0 rgba(255,255,255,0.2)',
             }}>
-              <Activity size={20} color="#fff" strokeWidth={2.4} />
+              <Zap size={22} color="#fff" strokeWidth={2} />
             </div>
             <div>
               <div className="gradient-text" style={{ fontSize: 'var(--text-xl)', fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 }}>
@@ -151,35 +168,50 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)', flexWrap: 'wrap' }}>
+            {/* LIVE Badge */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '5px 12px', borderRadius: 20,
+              position: 'relative',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 14px', borderRadius: 20,
               border: `1px solid ${isLive ? 'var(--signal-human-border)' : 'var(--signal-uncertain-border)'}`,
               background: isLive ? 'var(--signal-human-glow)' : 'var(--signal-uncertain-glow)',
+              animation: isLive ? 'border-glow-pulse 3s ease-in-out infinite' : 'none',
             }}>
-              <div style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: isLive ? 'var(--signal-human)' : connectionStatus === 'connecting' ? 'var(--signal-uncertain)' : 'var(--signal-agent)',
-                boxShadow: isLive ? '0 0 8px var(--signal-human)' : 'none',
-                animation: isLive ? 'pulse-dot 2s ease-in-out infinite' : 'none',
-              }} />
-              <span style={{ fontSize: 'var(--text-xs)', color: isLive ? 'var(--signal-human-text)' : 'var(--signal-uncertain-text)', fontFamily: 'var(--font-mono)', letterSpacing: '1px', fontWeight: 600 }}>
-                {isLive ? 'LIVE' : connectionStatus.toUpperCase()}
+              <div style={{ position: 'relative', width: 10, height: 10 }}>
+                <div style={{
+                  position: 'absolute', inset: 0, borderRadius: '50%',
+                  background: isLive ? 'var(--signal-human)' : 'var(--signal-agent)',
+                  boxShadow: isLive ? '0 0 8px var(--signal-human)' : 'none',
+                }} />
+                <div style={{
+                  position: 'absolute', top: -2, left: -2, right: -2, bottom: -2,
+                  borderRadius: '50%',
+                  border: '2px solid',
+                  borderColor: isLive ? 'var(--signal-human)' : 'transparent',
+                  opacity: 0.3,
+                  animation: isLive ? 'pulse-ring 2s ease-out infinite' : 'none',
+                }} />
+              </div>
+              <span style={{
+                fontSize: 'var(--text-xs)', color: isLive ? 'var(--signal-human-text)' : 'var(--signal-uncertain-text)',
+                fontFamily: 'var(--font-mono)', letterSpacing: '1.5px', fontWeight: 700,
+              }}>
+                {'\u25CF'} {isLive ? 'LIVE' : connectionStatus.toUpperCase()}
               </span>
             </div>
 
-            <div style={{ height: 24, width: 1, background: 'var(--border-subtle)' }} />
+            <div style={{ height: 28, width: 1, background: 'linear-gradient(180deg, transparent, var(--border-subtle), transparent)' }} />
 
             {[
               { label: 'Scored', value: oracleStats?.total_scored_wallets?.toLocaleString() ?? '\u2014' },
               { label: 'Fresh Proofs', value: totalFreshProofs.toLocaleString() },
               { label: 'Model', value: modelVersion ? `v${modelVersion}` : '\u2014' },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
+            ].map(({ label, value }, i) => (
+              <div key={label} style={{ textAlign: 'center', animation: `fade-in-up 300ms ${100 + i * 100}ms var(--ease-out) both` }}>
+                <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-1px' }}>
                   {value}
                 </div>
-                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', marginTop: 3 }}>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 3, fontWeight: 700 }}>
                   {label}
                 </div>
               </div>
@@ -230,7 +262,7 @@ export default function App() {
           gap: 'var(--space-4)',
           alignItems: 'stretch',
         }}>
-          <div style={{ gridColumn: 'span 3', minHeight: 560, display: 'flex' }}>
+          <div style={{ gridColumn: 'span 3', minHeight: 600, display: 'flex' }}>
             <GhostPanel
               ghostAddress={GHOST_ADDRESS}
               currentHPS={ghostScore}
@@ -238,7 +270,7 @@ export default function App() {
             />
           </div>
 
-          <div style={{ gridColumn: 'span 3', minHeight: 560, display: 'flex' }}>
+          <div style={{ gridColumn: 'span 3', minHeight: 600, display: 'flex' }}>
             <InterrogatorPanel
               ghostScore={ghostScore}
               previousScore={previousScore}
@@ -251,14 +283,14 @@ export default function App() {
             />
           </div>
 
-          <div style={{ gridColumn: 'span 3', minHeight: 560, display: 'flex' }}>
+          <div style={{ gridColumn: 'span 3', minHeight: 600, display: 'flex' }}>
             <RealclawTrustPanel
               ghostAddress={GHOST_ADDRESS}
               trust={trust}
             />
           </div>
 
-          <div style={{ gridColumn: 'span 3', minHeight: 560, display: 'flex' }}>
+          <div style={{ gridColumn: 'span 3', minHeight: 600, display: 'flex' }}>
             <ProofLeaderboard
               proofs={recentProofs}
               totalFreshProofs={totalFreshProofs}

@@ -1,62 +1,48 @@
 import { useEffect, useRef, useState } from 'react';
+import AnimatedNumber from './AnimatedNumber';
+
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function describeArc(startDeg, endDeg, r, cx, cy) {
+  const start = polarToCartesian(cx, cy, r, endDeg);
+  const end = polarToCartesian(cx, cy, r, startDeg);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${large} 0 ${end.x} ${end.y}`;
+}
 
 export default function ScoreGauge({
   score = 5000,
   previousScore = 5000,
   size = 220,
-  strokeWidth = 12,
 }) {
-  const [displayScore, setDisplayScore] = useState(score);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const animRef = useRef(null);
-  const startRef = useRef(score);
-  const startTimeRef = useRef(null);
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const prevScoreRef = useRef(previousScore);
 
   useEffect(() => {
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-    startRef.current = displayScore;
-    startTimeRef.current = null;
-    setIsAnimating(true);
-
-    const DURATION = 800;
-    const target = score;
-    const start = startRef.current;
-
-    const animate = (timestamp) => {
-      if (!startTimeRef.current) startTimeRef.current = timestamp;
-      const elapsed = timestamp - startTimeRef.current;
-      const progress = Math.min(elapsed / DURATION, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(start + (target - start) * eased);
-      setDisplayScore(current);
-
-      if (progress < 1) {
-        animRef.current = requestAnimationFrame(animate);
-      } else {
-        setIsAnimating(false);
-      }
-    };
-
-    animRef.current = requestAnimationFrame(animate);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+    setAnimatedScore(score);
   }, [score]);
 
-  const center = size / 2;
-  const radius = (size - strokeWidth * 2) / 2;
-  const circumference = 2 * Math.PI * radius;
+  const cx = size / 2;
+  const cy = size / 2;
 
-  const ARC_DEGREES = 270;
-  const START_ANGLE = 135;
-  const arcLength = (ARC_DEGREES / 360) * circumference;
+  const ARC_DEG = 270;
+  const START = 135;
+  const END = START + ARC_DEG;
+  const TRACK_W = 12;
+  const rTrack = (size - 20) / 2;
 
-  const fillRatio = Math.max(0, Math.min(1, score / 10000));
-  const fillLength = fillRatio * arcLength;
-  const dashOffset = arcLength - fillLength;
+  const fillRatio = Math.max(0, Math.min(1, animatedScore / 10000));
+  const fillAngle = fillRatio * ARC_DEG;
+  const fillEnd = START + fillAngle;
+  const pct = (animatedScore / 100).toFixed(1);
 
   const getArcColor = (s) => {
-    const ratio = s / 10000;
-    if (ratio >= 0.70) return 'var(--signal-human)';
-    if (ratio >= 0.50) return 'var(--signal-uncertain)';
+    const r = s / 10000;
+    if (r >= 0.70) return 'var(--signal-human)';
+    if (r >= 0.50) return 'var(--signal-uncertain)';
     return 'var(--signal-agent)';
   };
 
@@ -76,32 +62,24 @@ export default function ScoreGauge({
     return 'var(--signal-agent-text)';
   };
 
-  const polarToCartesian = (cx, cy, r, angleDeg) => {
-    const rad = ((angleDeg - 90) * Math.PI) / 180;
-    return {
-      x: cx + r * Math.cos(rad),
-      y: cy + r * Math.sin(rad),
-    };
-  };
+  useEffect(() => {
+    prevScoreRef.current = score;
+  }, [score]);
 
-  const makeArc = (startDeg, endDeg, r) => {
-    const start = polarToCartesian(center, center, r, endDeg);
-    const end = polarToCartesian(center, center, r, startDeg);
-    const largeArcFlag = endDeg - startDeg <= 180 ? '0' : '1';
-    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
-  };
+  const trackArc = describeArc(START, END, rTrack, cx, cy);
+  const filledArc = describeArc(START, fillEnd, rTrack, cx, cy);
+  const capStart = polarToCartesian(cx, cy, rTrack, START);
+  const capEnd = polarToCartesian(cx, cy, rTrack, END);
+  const fillCap = polarToCartesian(cx, cy, rTrack, fillEnd);
 
-  const arcPath = makeArc(START_ANGLE, START_ANGLE + ARC_DEGREES, radius);
-
-  const ticks = [0, 0.25, 0.5, 0.75, 1.0].map(t => {
-    const angle = START_ANGLE + t * ARC_DEGREES;
-    const inner = polarToCartesian(center, center, radius - 8, angle);
-    const outer = polarToCartesian(center, center, radius + 4, angle);
-    return { inner, outer, t };
+  const majorTicks = Array.from({ length: 11 }, (_, i) => {
+    const t = i / 10;
+    const angle = START + t * ARC_DEG;
+    const inner = polarToCartesian(cx, cy, rTrack - 6, angle);
+    const outer = polarToCartesian(cx, cy, rTrack - 2, angle);
+    const labelPos = polarToCartesian(cx, cy, rTrack + 12, angle);
+    return { inner, outer, labelPos, val: Math.round(t * 10000), isFilled: t <= fillRatio };
   });
-
-  const scoreChanged = score !== previousScore;
-  const scoreIncreased = score > previousScore;
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
@@ -111,120 +89,244 @@ export default function ScoreGauge({
         viewBox={`0 0 ${size} ${size}`}
         style={{ overflow: 'visible' }}
       >
+        <defs>
+          {/* Glass blur backdrop */}
+          <filter id="glass-bg">
+            <feGaussianBlur stdDeviation="24" />
+          </filter>
+
+          {/* Glass specular highlight filter */}
+          <filter id="glass-glow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* Soft wave glow */}
+          <filter id="wave-glow">
+            <feGaussianBlur stdDeviation="8" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* Radial gradient for glass backdrop */}
+          <radialGradient id="glass-backdrop" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(139,124,255,0.06)" />
+            <stop offset="60%" stopColor="rgba(139,124,255,0.03)" />
+            <stop offset="100%" stopColor="rgba(139,124,255,0)" />
+          </radialGradient>
+
+          {/* Glass track gradient */}
+          <linearGradient id="track-glass" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.06)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.015)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0.03)" />
+          </linearGradient>
+
+          {/* Fill glass gradient */}
+          <linearGradient id="fill-glass" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="white" stopOpacity="0.25" />
+            <stop offset="30%" stopColor="white" stopOpacity="0.05" />
+            <stop offset="70%" stopColor="white" stopOpacity="0" />
+            <stop offset="100%" stopColor="white" stopOpacity="0.08" />
+          </linearGradient>
+
+          <clipPath id="track-clip">
+            <path d={trackArc} fill="none" stroke="white" strokeWidth={TRACK_W + 4} strokeLinecap="round" />
+          </clipPath>
+        </defs>
+
+        {/* Frosted glass backdrop circle */}
+        <circle cx={cx} cy={cy} r={rTrack + 16} fill="url(#glass-backdrop)" />
+        <circle cx={cx} cy={cy} r={rTrack + 16} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+
+        {/* Glass track ring */}
         <path
-          d={arcPath}
+          d={trackArc}
           fill="none"
-          stroke="var(--bg-elevated)"
-          strokeWidth={strokeWidth}
+          stroke="url(#track-glass)"
+          strokeWidth={TRACK_W + 4}
           strokeLinecap="round"
         />
-
         <path
-          d={arcPath}
+          d={trackArc}
+          fill="none"
+          stroke="rgba(255,255,255,0.035)"
+          strokeWidth={TRACK_W + 4}
+          strokeLinecap="round"
+          strokeDasharray="2 6"
+        />
+
+        {/* Track inner shadow */}
+        <path
+          d={describeArc(START, END, rTrack - TRACK_W / 2 - 1, cx, cy)}
+          fill="none"
+          stroke="rgba(0,0,0,0.3)"
+          strokeWidth={1}
+        />
+        <path
+          d={describeArc(START, END, rTrack + TRACK_W / 2 + 1, cx, cy)}
+          fill="none"
+          stroke="rgba(255,255,255,0.04)"
+          strokeWidth={1}
+        />
+
+        {/* Under-glow wave - the smooth glass light emission */}
+        <path
+          d={filledArc}
           fill="none"
           stroke={arcColor}
-          strokeWidth={strokeWidth}
+          strokeWidth={TRACK_W + 16}
           strokeLinecap="round"
-          strokeDasharray={`${fillLength} ${circumference}`}
-          style={{
-            transition: 'stroke-dasharray 600ms cubic-bezier(0.16, 1, 0.3, 1), stroke 400ms ease',
-            filter: `drop-shadow(0 0 6px ${arcColor})`,
-          }}
+          opacity={0.06}
+          className="wave-under"
         />
-
         <path
-          d={arcPath}
+          d={filledArc}
           fill="none"
           stroke={arcColor}
-          strokeWidth={strokeWidth * 2.5}
+          strokeWidth={TRACK_W + 8}
           strokeLinecap="round"
-          strokeDasharray={`${fillLength} ${circumference}`}
-          style={{
-            opacity: 0.12,
-            transition: 'stroke-dasharray 600ms cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
+          opacity={0.04}
+          className="wave-under-delay"
         />
 
-        {ticks.map(({ inner, outer, t }) => (
-          <line
-            key={t}
-            x1={inner.x} y1={inner.y}
-            x2={outer.x} y2={outer.y}
-            stroke="var(--border-default)"
-            strokeWidth={t === 0 || t === 1 ? 2 : 1}
-          />
+        {/* Main glass fill - the liquid in the tube */}
+        <path
+          d={filledArc}
+          fill="none"
+          stroke={arcColor}
+          strokeWidth={TRACK_W}
+          strokeLinecap="round"
+          filter="url(#glass-glow)"
+        />
+
+        {/* Glass specular highlight on fill (reflection) */}
+        <path
+          d={filledArc}
+          fill="none"
+          stroke="url(#fill-glass)"
+          strokeWidth={TRACK_W - 2}
+          strokeLinecap="round"
+        />
+
+          {/* End cap - glass bead */}
+        {fillAngle > 0 && (
+          <g filter="url(#glass-glow)">
+            <circle cx={fillCap.x} cy={fillCap.y} r={TRACK_W / 2 + 4} fill={arcColor} opacity={0.08} className="wave-halo" />
+            <circle cx={fillCap.x} cy={fillCap.y} r={TRACK_W / 2} fill={arcColor} opacity={0.6} />
+            <circle cx={fillCap.x} cy={fillCap.y} r={TRACK_W / 2} fill="url(#fill-glass)" opacity={0.8} />
+            <circle cx={fillCap.x - 2} cy={fillCap.y - 2} r={3} fill="white" opacity={0.6} />
+          </g>
+        )}
+
+        {/* Track end dots */}
+        <circle cx={capStart.x} cy={capStart.y} r={2} fill="rgba(255,255,255,0.1)" />
+        <circle cx={capEnd.x} cy={capEnd.y} r={2} fill="rgba(255,255,255,0.1)" />
+
+        {/* Tick marks */}
+        {majorTicks.map((tick, i) => (
+          <g key={i}>
+            <line
+              x1={tick.inner.x} y1={tick.inner.y}
+              x2={tick.outer.x} y2={tick.outer.y}
+              stroke={tick.isFilled ? arcColor : 'rgba(255,255,255,0.06)'}
+              strokeWidth={1.2}
+              opacity={tick.isFilled ? 0.7 : 0.3}
+            />
+            <text
+              x={tick.labelPos.x}
+              y={tick.labelPos.y + 3}
+              textAnchor="middle"
+              fill="var(--text-disabled)"
+              fontSize="7"
+              fontFamily="var(--font-mono)"
+              fontWeight={600}
+            >
+              {tick.val.toLocaleString()}
+            </text>
+          </g>
         ))}
 
+        {/* Center label */}
         <text
-          x={center}
-          y={center - 28}
+          x={cx}
+          y={cy - 30}
           textAnchor="middle"
-          fill="var(--text-tertiary)"
-          fontSize="11"
+          fill="var(--text-muted)"
+          fontSize="9"
           fontFamily="var(--font-mono)"
-          letterSpacing="1"
+          letterSpacing="4"
+          fontWeight="700"
         >
           P(HUMAN)
         </text>
 
+        <foreignObject x={cx - 64} y={cy - 28} width={128} height={54}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+          }}>
+            <AnimatedNumber
+              value={animatedScore}
+              duration={800}
+              style={{
+                fontSize: '52px',
+                fontWeight: 800,
+                fontFamily: 'var(--font-mono)',
+                color: arcColor,
+                letterSpacing: '-4px',
+                lineHeight: 1,
+                transition: 'color 400ms ease',
+                filter: `drop-shadow(0 0 16px ${arcColor}66)`,
+              }}
+            />
+          </div>
+        </foreignObject>
+
         <text
-          x={center}
-          y={center + 16}
+          x={cx}
+          y={cy + 34}
           textAnchor="middle"
-          fill={arcColor}
-          fontSize="48"
+          fill="var(--text-tertiary)"
+          fontSize="9"
           fontFamily="var(--font-mono)"
-          fontWeight="700"
-          letterSpacing="-2"
-          style={{
-            transition: 'fill 400ms ease',
-            filter: isAnimating ? `drop-shadow(0 0 12px ${arcColor})` : 'none',
-          }}
+          letterSpacing="1"
         >
-          {displayScore.toLocaleString()}
+          / 10000
         </text>
 
         <text
-          x={center}
-          y={center + 34}
+          x={cx}
+          y={cy + 50}
           textAnchor="middle"
-          fill="var(--text-muted)"
-          fontSize="10"
+          fill={arcColor}
+          fontSize="11"
           fontFamily="var(--font-mono)"
+          fontWeight="700"
+          opacity={0.6}
         >
-          / 10000
+          {pct}%
         </text>
       </svg>
 
       <div style={{
         position: 'absolute',
-        bottom: -8,
+        bottom: -4,
         left: 0,
         right: 0,
         textAlign: 'center',
         fontSize: '10px',
-        letterSpacing: '2px',
-        fontWeight: '600',
+        letterSpacing: '3px',
+        fontWeight: '700',
         color: getLabelColor(score),
         fontFamily: 'var(--font-mono)',
         textTransform: 'uppercase',
         transition: 'color 400ms ease',
+        textShadow: `0 0 24px ${getLabelColor(score)}44, 0 0 48px ${getLabelColor(score)}11`,
       }}>
         {getLabel(score)}
       </div>
-
-      {scoreChanged && (
-        <div style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          fontSize: '18px',
-          color: scoreIncreased ? 'var(--signal-human)' : 'var(--signal-agent)',
-          animation: 'slide-in-right 300ms ease both',
-        }}>
-          {scoreIncreased ? '\u2191' : '\u2193'}
-        </div>
-      )}
     </div>
   );
 }

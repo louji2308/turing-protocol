@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 const FEATURE_LABELS = {
   'temp_0_log_mean_delta': 'Mean reaction time',
@@ -63,9 +63,18 @@ const FEATURE_DESCRIPTIONS = {
   'port_0_size_cv': 'Human trade sizes vary dramatically. Agents use fixed sizes.',
 };
 
-export default function FeatureWaterfall({ contributions = [], maxFeatures = 10, apiAvailable = true }) {
+function getCategoryPrefix(featureName) {
+  const map = { temp: 'TIMING', gas: 'GAS', div: 'DIVERSITY', port: 'PORTFOLIO', event: 'EVENT', consist: 'CONSISTENCY', net: 'NETWORK' };
+  const prefix = featureName.split('_')[0];
+  return map[prefix] || 'OTHER';
+}
+
+const CATEGORY_ORDER = ['TIMING', 'GAS', 'DIVERSITY', 'PORTFOLIO', 'EVENT', 'CONSISTENCY', 'NETWORK', 'OTHER'];
+
+export default function FeatureWaterfall({ contributions = [], maxFeatures = 12, apiAvailable = true }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredFeature, setHoveredFeature] = useState(null);
+  const tooltipRef = useRef(null);
 
   useEffect(() => {
     setMounted(false);
@@ -76,12 +85,12 @@ export default function FeatureWaterfall({ contributions = [], maxFeatures = 10,
   if (!contributions || contributions.length === 0) {
     return (
       <div style={{
-        padding: 'var(--space-4)',
+        padding: 'var(--space-6)',
         textAlign: 'center',
         color: 'var(--text-muted)',
         fontSize: 'var(--text-sm)',
         fontFamily: 'var(--font-mono)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
       }}>
         {apiAvailable === false ? (
           <span style={{ color: 'var(--signal-uncertain-text)' }}>
@@ -89,146 +98,230 @@ export default function FeatureWaterfall({ contributions = [], maxFeatures = 10,
           </span>
         ) : (
           <>
-            <span style={{ width: 16, height: 16, border: '2px solid var(--border-subtle)', borderTopColor: 'var(--accent-purple)', borderRadius: '50%', animation: 'spin 800ms linear infinite', display: 'inline-block' }} />
-            Waiting for SHAP analysis...
+            <div style={{ width: 20, height: 20, border: '2px solid var(--border-subtle)', borderTopColor: 'var(--accent-purple)', borderRadius: '50%', animation: 'spin 800ms linear infinite' }} />
+            <span style={{ color: 'var(--text-tertiary)', letterSpacing: '1px', textTransform: 'uppercase', fontSize: 'var(--text-2xs)' }}>
+              Waiting for SHAP analysis...
+            </span>
           </>
         )}
       </div>
     );
   }
 
-  const displayed = contributions.slice(0, maxFeatures);
-  const maxContrib = Math.max(...displayed.map(f => Math.abs(f.contribution)), 0.01);
+  const sorted = [...contributions].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+  const displayed = sorted.slice(0, maxFeatures);
+
+  const grouped = {};
+  displayed.forEach((f) => {
+    const cat = getCategoryPrefix(f.feature);
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(f);
+  });
+
+  const orderedGroups = CATEGORY_ORDER.filter((c) => grouped[c]).map((c) => ({ category: c, items: grouped[c] }));
+
+  let globalIdx = 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '150px 1fr 52px',
+        gridTemplateColumns: '1fr 60px 44px',
         gap: 8,
-        paddingBottom: 6,
+        paddingBottom: 8,
         borderBottom: '1px solid var(--border-subtle)',
-        marginBottom: 2,
+        marginBottom: 4,
       }}>
-        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>Feature</span>
-        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', textAlign: 'center' }}>{'\u2190'} Agent {'\u00B7'} Human {'\u2192'}</span>
-        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', textAlign: 'right' }}>SHAP</span>
+        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>Feature</span>
+        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, textAlign: 'center' }}>
+          {'\u2190'} A &middot; H {'\u2192'}
+        </span>
+        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, textAlign: 'right' }}>SHAP</span>
       </div>
 
-      {displayed.map((feat, idx) => {
-        const isHuman = feat.contribution > 0;
-        const absContrib = Math.abs(feat.contribution);
-        const barWidthPct = mounted ? (absContrib / maxContrib) * 50 : 0;
-        const label = FEATURE_LABELS[feat.feature] || feat.feature.replace(/_/g, ' ');
-        const isHovered = hoveredFeature === feat.feature;
-
-        return (
-          <div
-            key={feat.feature}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '150px 1fr 52px',
-              gap: 8,
-              alignItems: 'center',
-              padding: '3px 6px',
-              borderRadius: 'var(--radius-sm)',
-              background: isHovered ? 'var(--surface-02)' : 'transparent',
-              transition: 'background var(--duration-fast) ease',
-              cursor: 'default',
-              animation: `fade-in-up ${200 + idx * 40}ms var(--ease-out) both`,
-            }}
-            onMouseEnter={() => setHoveredFeature(feat.feature)}
-            onMouseLeave={() => setHoveredFeature(null)}
-          >
-            <div style={{
-              fontSize: 'var(--text-xs)',
-              color: isHovered ? 'var(--text-secondary)' : 'var(--text-tertiary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              transition: 'color var(--duration-fast) ease',
-              fontFamily: 'var(--font-mono)',
-            }}
-              title={FEATURE_DESCRIPTIONS[feat.feature] || label}
-            >
-              {label}
-            </div>
-
-            <div style={{ position: 'relative', height: 8 }}>
-              <div style={{
-                position: 'absolute',
-                left: '50%',
-                top: 0,
-                bottom: 0,
-                width: 1,
-                background: 'var(--border-default)',
-                transform: 'translateX(-50%)',
-              }} />
-
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'var(--bg-elevated)',
-                borderRadius: 4,
-              }} />
-
-              <div style={{
-                position: 'absolute',
-                top: 1,
-                bottom: 1,
-                borderRadius: 3,
-                background: isHuman ? 'var(--signal-human)' : 'var(--signal-agent)',
-                ...(isHuman
-                  ? { left: '50%', width: `${barWidthPct}%` }
-                  : { right: '50%', width: `${barWidthPct}%` }
-                ),
-                boxShadow: `0 0 4px ${isHuman ? 'var(--signal-human)' : 'var(--signal-agent)'}44`,
-                transition: `width ${400 + idx * 30}ms var(--ease-out)`,
-              }} />
-            </div>
-
-            <div style={{
-              fontSize: 'var(--text-xs)',
-              color: isHuman ? 'var(--signal-human-text)' : 'var(--signal-agent-text)',
-              textAlign: 'right',
-              fontFamily: 'var(--font-mono)',
-              fontVariantNumeric: 'tabular-nums',
+      {orderedGroups.map(({ category, items }) => (
+        <div key={category}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 4px 4px',
+            marginTop: 4,
+          }}>
+            <span style={{
+              fontSize: '8px', letterSpacing: '3px', color: 'var(--text-disabled)',
+              fontWeight: 700, textTransform: 'uppercase',
             }}>
-              {feat.contribution > 0 ? '+' : ''}{(feat.contribution * 100).toFixed(1)}
-            </div>
+              {category}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--border-subtle), transparent)' }} />
           </div>
-        );
-      })}
+
+          {items.map((feat) => {
+            const idx = globalIdx++;
+            const isHuman = feat.contribution > 0;
+            const absContrib = Math.abs(feat.contribution);
+            const barWidthPct = mounted ? Math.min(absContrib * 50, 50) : 0;
+            const label = FEATURE_LABELS[feat.feature] || feat.feature.replace(/_/g, ' ');
+            const isHovered = hoveredFeature === feat.feature;
+
+            return (
+              <div
+                key={feat.feature}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 60px 44px',
+                  gap: 8,
+                  alignItems: 'center',
+                  padding: '4px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: isHovered ? 'var(--surface-02)' : 'transparent',
+                  border: isHovered ? '1px solid var(--border-subtle)' : '1px solid transparent',
+                  transition: 'background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) ease',
+                  cursor: 'default',
+                  animation: `fade-in-up ${200 + idx * 45}ms var(--ease-out) both`,
+                  position: 'relative',
+                }}
+                onMouseEnter={() => setHoveredFeature(feat.feature)}
+                onMouseLeave={() => setHoveredFeature(null)}
+              >
+                <div style={{
+                  fontSize: 'var(--text-xs)',
+                  color: isHovered ? 'var(--text-secondary)' : 'var(--text-tertiary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  transition: 'color var(--duration-fast) ease',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                  title={FEATURE_DESCRIPTIONS[feat.feature] || label}
+                >
+                  {label}
+                </div>
+
+                <div style={{ position: 'relative', height: 10 }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: 'var(--border-subtle)',
+                    transform: 'translateX(-50%)',
+                  }} />
+
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(255,255,255,0.04)',
+                    borderRadius: 4,
+                  }} />
+
+                  {/* Glow layer */}
+                  <div style={{
+                    position: 'absolute',
+                    top: -2,
+                    bottom: -2,
+                    borderRadius: 6,
+                    background: isHuman
+                      ? `linear-gradient(90deg, rgba(0,255,163,0.15), transparent)`
+                      : `linear-gradient(270deg, rgba(255,51,85,0.15), transparent)`,
+                    filter: 'blur(4px)',
+                    opacity: isHovered ? 0.4 : 0.15,
+                    transition: 'opacity var(--duration-fast) ease',
+                    ...(isHuman
+                      ? { left: '50%', width: `${Math.min(barWidthPct * 2, 100)}%` }
+                      : { right: '50%', width: `${Math.min(barWidthPct * 2, 100)}%` }
+                    ),
+                  }} />
+
+                  {/* Main bar */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 1,
+                    bottom: 1,
+                    borderRadius: 3,
+                    background: isHuman
+                      ? `linear-gradient(90deg, rgba(0,255,163,0.6), rgba(0,255,163,0.9))`
+                      : `linear-gradient(270deg, rgba(255,51,85,0.6), rgba(255,51,85,0.9))`,
+                    boxShadow: isHuman
+                      ? '0 0 6px rgba(0,255,163,0.3)'
+                      : '0 0 6px rgba(255,51,85,0.3)',
+                    transition: `width ${400 + idx * 30}ms var(--ease-out), filter var(--duration-fast) ease`,
+                    ...(isHuman
+                      ? { left: '50%', width: `${barWidthPct}%` }
+                      : { right: '50%', width: `${barWidthPct}%` }
+                    ),
+                    filter: isHovered ? 'brightness(1.3) saturate(1.2)' : 'none',
+                  }} />
+                </div>
+
+                <div style={{
+                  fontSize: 'var(--text-xs)',
+                  color: isHuman ? 'var(--signal-human-text)' : 'var(--signal-agent-text)',
+                  textAlign: 'right',
+                  fontFamily: 'var(--font-mono)',
+                  fontVariantNumeric: 'tabular-nums',
+                  fontWeight: 600,
+                }}>
+                  {feat.contribution > 0 ? '+' : ''}{(feat.contribution * 100).toFixed(1)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
 
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        gap: 20,
-        paddingTop: 8,
+        gap: 24,
+        paddingTop: 10,
         borderTop: '1px solid var(--border-subtle)',
-        marginTop: 4,
+        marginTop: 6,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 24, height: 4, background: 'var(--signal-agent)', borderRadius: 2 }} />
-          <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>Agent Signal</span>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: 'var(--signal-agent)',
+            boxShadow: '0 0 6px var(--signal-agent)',
+          }} />
+          <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700 }}>
+            {'\u2190'} AGENT SIGNALS
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 24, height: 4, background: 'var(--signal-human)', borderRadius: 2 }} />
-          <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>Human Signal</span>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: 'var(--signal-human)',
+            boxShadow: '0 0 6px var(--signal-human)',
+          }} />
+          <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700 }}>
+            HUMAN SIGNALS {'\u2192'}
+          </span>
         </div>
       </div>
 
       {hoveredFeature && FEATURE_DESCRIPTIONS[hoveredFeature] && (
-        <div style={{
-          padding: '8px 10px',
-          background: 'var(--surface-02)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          fontSize: 'var(--text-xs)',
-          color: 'var(--text-secondary)',
-          marginTop: 4,
-          animation: 'fade-in-up 150ms var(--ease-out) both',
-        }}>
+        <div
+          ref={tooltipRef}
+          style={{
+            padding: '10px 12px',
+            background: 'var(--bg-panel-solid)',
+            border: '1px solid var(--border-accent)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-secondary)',
+            marginTop: 4,
+            animation: 'fade-in-up 150ms var(--ease-out) both',
+            lineHeight: 1.6,
+            boxShadow: 'var(--shadow-purple)',
+            position: 'relative',
+          }}
+        >
+          <div style={{
+            position: 'absolute', top: -1, left: '20%', right: '20%',
+            height: 1,
+            background: 'linear-gradient(90deg, transparent, var(--accent-purple-border), transparent)',
+          }} />
           {FEATURE_DESCRIPTIONS[hoveredFeature]}
         </div>
       )}

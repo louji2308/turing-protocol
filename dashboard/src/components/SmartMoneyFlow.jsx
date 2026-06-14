@@ -14,7 +14,7 @@ export function SmartMoneyFlow({ flows }) {
   if (!flows || !flows.top_flows?.length) {
     return (
       <div style={{ ...cardStyle, alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-        Smart money flow loading…
+        Smart money flow loading\u2026
       </div>
     );
   }
@@ -33,19 +33,19 @@ export function SmartMoneyFlow({ flows }) {
     <div style={cardStyle}>
       <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--text-primary)' }}>Smart Money Flow</div>
       <div className="label-caps" style={{ marginTop: 2, marginBottom: 'var(--space-3)' }}>
-        14d · where HPS ≥ {flows.threshold_hps} deploys capital
+        14d &middot; where HPS &ge; {flows.threshold_hps} deploys capital
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height={210}>
           <Sankey
             data={{ nodes, links }}
             node={<Rectangle radius={[2, 2, 2, 2]} fill="var(--accent-purple)" />}
-            link={{ stroke: 'var(--accent-purple)', strokeOpacity: 0.22 }}
+            link={{ stroke: 'rgba(139,124,255,0.22)', strokeOpacity: 0.4 }}
             margin={{ top: 10, bottom: 10, left: 10, right: 90 }}
           >
             <Tooltip
               formatter={(value) => `${value.toFixed(2)} MNT`}
-              contentStyle={{ background: 'rgba(20,23,38,0.92)', border: '1px solid var(--border-default)', borderRadius: 8, color: '#fff' }}
+              contentStyle={{ background: 'rgba(8,10,20,0.96)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '11px' }}
             />
           </Sankey>
         </ResponsiveContainer>

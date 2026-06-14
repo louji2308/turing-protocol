@@ -137,14 +137,22 @@ function TrustResultCard({ result, onClose, onHandshake }) {
         }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
           <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: 2 }}>Trust Decision</div>
-            <div style={{ fontSize: 'var(--text-2xl)', fontWeight: '800', color: recColor, letterSpacing: '-1px', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: 4, letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600 }}>Trust Decision</div>
+            <div style={{
+              fontSize: '32px',
+              fontWeight: '800',
+              color: recColor,
+              letterSpacing: '-1.5px',
+              fontFamily: 'var(--font-mono)',
+              lineHeight: 1,
+              textShadow: `0 0 24px ${recColor}55, 0 0 48px ${recColor}22`,
+            }}>
               {recLabel}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>P(Human)</div>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: '700', color: recColor, fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700 }}>P(Human)</div>
+            <div style={{ fontSize: '24px', fontWeight: '800', color: recColor, fontFamily: 'var(--font-mono)', letterSpacing: '-1px' }}>
               {(hps / 100).toFixed(1)}%
             </div>
           </div>
@@ -231,8 +239,22 @@ function HandshakeVisualization({ result, ghostAddress }) {
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', flex: 0.6 }}>
-          <div style={{ fontSize: 20, color: 'var(--text-muted)', marginBottom: 4 }}>⟷</div>
+        <div style={{ textAlign: 'center', flex: 0.6, position: 'relative' }}>
+          <div style={{ fontSize: 20, color: 'var(--text-muted)', marginBottom: 4, position: 'relative' }}>
+            ⟷
+            <div style={{
+              position: 'absolute', top: '50%', left: -4, width: 8, height: 8,
+              borderRadius: '50%', background: recColor,
+              animation: 'pulse-ring 1.5s ease-out infinite',
+              opacity: 0.6,
+            }} />
+            <div style={{
+              position: 'absolute', top: '50%', right: -4, width: 8, height: 8,
+              borderRadius: '50%', background: recColor,
+              animation: 'pulse-ring 1.5s ease-out infinite 0.75s',
+              opacity: 0.6,
+            }} />
+          </div>
           <div style={{
             padding: '4px 10px', borderRadius: 20,
             background: `${recColor}15`,
@@ -547,20 +569,36 @@ export default function RealclawTrustPanel({
         ))}
       </div>
 
-      {/* Tier selector */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {['lenient', 'standard', 'strict'].map(t => (
-          <button key={t} onClick={() => setTier(t)} style={{
-            flex: 1, padding: '3px 6px', borderRadius: 'var(--radius-sm)',
-            border: `1px solid ${tier === t ? 'var(--accent-purple-border)' : 'var(--border-subtle)'}`,
-            background: tier === t ? 'var(--accent-purple-glow)' : 'transparent',
-            color: tier === t ? 'var(--accent-purple)' : 'var(--text-muted)',
-            fontSize: 'var(--text-2xs)', fontWeight: tier === t ? 700 : 400,
+      {/* Tier selector - Segmented slider */}
+      <div style={{ position: 'relative', background: 'var(--surface-00)', borderRadius: 'var(--radius-md)', padding: 3, border: '1px solid var(--border-subtle)' }}>
+        <div style={{
+          position: 'absolute',
+          top: 3, bottom: 3,
+          borderRadius: 'var(--radius-sm)',
+          background: 'linear-gradient(135deg, rgba(139,124,255,0.15), rgba(139,124,255,0.05))',
+          border: '1px solid var(--border-accent)',
+          boxShadow: '0 0 12px rgba(139,124,255,0.1)',
+          transition: 'transform 250ms cubic-bezier(0.22, 1, 0.36, 1)',
+          width: '33.33%',
+          transform: tier === 'lenient' ? 'translateX(0)' : tier === 'standard' ? 'translateX(100%)' : 'translateX(200%)',
+        }} />
+        {[
+          { key: 'lenient', label: 'LENIENT', threshold: '3K' },
+          { key: 'standard', label: 'STANDARD', threshold: '7K' },
+          { key: 'strict', label: 'STRICT', threshold: '8K' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTier(t.key)} style={{
+            width: '33.33%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+            border: 'none', position: 'relative', zIndex: 1,
+            background: 'transparent',
+            color: tier === t.key ? 'var(--accent-purple-bright)' : 'var(--text-muted)',
+            fontSize: 'var(--text-2xs)', fontWeight: tier === t.key ? 700 : 500,
             fontFamily: 'var(--font-mono)', cursor: 'pointer',
             textTransform: 'uppercase', letterSpacing: '1px',
-            transition: 'all var(--duration-fast) ease',
+            transition: 'color var(--duration-fast) ease',
           }}>
-            {t} {(t === 'lenient' ? '3000' : t === 'standard' ? '7000' : '8000')}
+            {t.label}
+            <span style={{ display: 'block', fontSize: '8px', opacity: 0.6 }}>{t.threshold}</span>
           </button>
         ))}
       </div>
@@ -612,18 +650,27 @@ export default function RealclawTrustPanel({
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--border-subtle)',
           }}>
-            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', marginRight: 4 }}>Quick:</span>
+            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', marginRight: 4, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Quick:</span>
             <button onClick={() => handleQuickCheck('0xE0E216283eef00895b6ABAa73848448596B85724')} style={{
+              padding: '3px 10px', borderRadius: 20,
               fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--accent-purple)',
-              background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px',
+              background: 'var(--accent-purple-glow)', border: '1px solid var(--accent-purple-border)',
+              cursor: 'pointer', fontWeight: 600,
+              transition: 'all var(--duration-fast) ease',
             }}>amankrisz.eth</button>
             <button onClick={() => handleQuickCheck(ghostAddress)} style={{
-              fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--signal-uncertain)',
-              background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px',
+              padding: '3px 10px', borderRadius: 20,
+              fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--signal-uncertain-text)',
+              background: 'var(--signal-uncertain-glow)', border: '1px solid var(--signal-uncertain-border)',
+              cursor: 'pointer', fontWeight: 600,
+              transition: 'all var(--duration-fast) ease',
             }}>ghost</button>
             <button onClick={() => handleQuickCheck('0x8080AC2cDf955d82B0B6670f1538DD1029ad1329')} style={{
-              fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--signal-agent)',
-              background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px',
+              padding: '3px 10px', borderRadius: 20,
+              fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--signal-agent-text)',
+              background: 'var(--signal-agent-glow)', border: '1px solid var(--signal-agent-border)',
+              cursor: 'pointer', fontWeight: 600,
+              transition: 'all var(--duration-fast) ease',
             }}>sybil</button>
           </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ScoreGauge from './ScoreGauge';
 import ScoreChart from './ScoreChart';
 import FeatureWaterfall from './FeatureWaterfall';
@@ -34,18 +34,38 @@ export default function InterrogatorPanel({
   const [activeTab, setActiveTab] = useState('waterfall');
   const [nextUpdateCountdown, setNextUpdateCountdown] = useState(null);
   const [scoreFlash, setScoreFlash] = useState(null);
+  const [tabIndicatorStyle, setTabIndicatorStyle] = useState({});
   const prevScoreRef = useRef(ghostScore);
+  const tabRefs = useRef({});
+  const tabContainerRef = useRef(null);
+
+  const updateTabIndicator = useCallback(() => {
+    const el = tabRefs.current[activeTab];
+    const container = tabContainerRef.current;
+    if (el && container) {
+      const containerRect = container.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      setTabIndicatorStyle({
+        width: elRect.width,
+        transform: `translateX(${elRect.left - containerRect.left}px)`,
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    updateTabIndicator();
+    window.addEventListener('resize', updateTabIndicator);
+    return () => window.removeEventListener('resize', updateTabIndicator);
+  }, [updateTabIndicator]);
 
   useEffect(() => {
     if (!lastUpdateTime) return;
     const UPDATE_INTERVAL = 60;
-
     const tick = () => {
       const secondsSinceUpdate = Math.floor((Date.now() - lastUpdateTime.getTime()) / 1000);
       const remaining = UPDATE_INTERVAL - (secondsSinceUpdate % UPDATE_INTERVAL);
       setNextUpdateCountdown(remaining);
     };
-
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
@@ -92,7 +112,7 @@ export default function InterrogatorPanel({
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div className="panel-header">
           <div className="panel-title">THE INTERROGATOR</div>
-          <div className="panel-subtitle">XGBoost behavioral classifier \u00B7 SHAP explainer</div>
+          <div className="panel-subtitle">XGBoost &middot; SHAP explainer</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <span className="badge" style={{ background: connBadge.bg, borderColor: connBadge.border, color: connBadge.color }}>
@@ -101,72 +121,98 @@ export default function InterrogatorPanel({
             )}
             {connBadge.label}
           </span>
-          {modelVersion && (
-            <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px' }}>
-              MODEL v{modelVersion}
-            </span>
-          )}
+          <span className="badge badge-purple" style={{ fontSize: '9px', padding: '2px 8px' }}>
+            MODEL v{modelVersion || '?'}
+          </span>
         </div>
       </div>
 
+      {/* Score Section */}
       <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        gap: 'var(--space-3)', padding: 'var(--space-2) 0', position: 'relative',
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        padding: 'var(--space-4) var(--space-4) var(--space-5)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)',
+        position: 'relative',
+        overflow: 'hidden',
       }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(139,124,255,0.3), transparent)',
+        }} />
         <ScoreGauge score={ghostScore} previousScore={previousScore} size={200} strokeWidth={14} />
 
-        <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-mono)', color: 'var(--signal-human-text)' }}>
+        <div style={{ display: 'flex', gap: 0, width: '100%', maxWidth: 280, marginTop: 4 }}>
+          <div style={{ flex: 1, textAlign: 'center', padding: 'var(--space-2) 0' }}>
+            <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-mono)', color: 'var(--signal-human-text)', letterSpacing: '-1px' }}>
               {(ghostScore / 100).toFixed(1)}%
             </div>
-            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, marginTop: 2 }}>
               P(Human)
             </div>
           </div>
-          <div style={{ width: 1, background: 'var(--border-subtle)', alignSelf: 'stretch' }} />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-mono)', color: 'var(--signal-agent-text)' }}>
+          <div style={{ width: 1, background: 'linear-gradient(180deg, transparent, var(--border-subtle), transparent)', alignSelf: 'stretch' }} />
+          <div style={{ flex: 1, textAlign: 'center', padding: 'var(--space-2) 0' }}>
+            <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-mono)', color: 'var(--signal-agent-text)', letterSpacing: '-1px' }}>
               {((10000 - ghostScore) / 100).toFixed(1)}%
             </div>
-            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, marginTop: 2 }}>
               P(Agent)
             </div>
           </div>
-          <div style={{ width: 1, background: 'var(--border-subtle)', alignSelf: 'stretch' }} />
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 1, background: 'linear-gradient(180deg, transparent, var(--border-subtle), transparent)', alignSelf: 'stretch' }} />
+          <div style={{ flex: 1, textAlign: 'center', padding: 'var(--space-2) 0' }}>
             <div style={{
-              fontSize: '18px', fontWeight: '700', fontFamily: 'var(--font-mono)',
-              color: nextUpdateCountdown !== null && nextUpdateCountdown < 60 ? 'var(--signal-uncertain-text)' : 'var(--text-secondary)',
+              fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-mono)',
+              color: nextUpdateCountdown !== null && nextUpdateCountdown < 30 ? 'var(--signal-uncertain-text)' : 'var(--text-secondary)',
+              letterSpacing: '-1px',
+              animation: nextUpdateCountdown !== null && nextUpdateCountdown < 30 ? 'pulse-dot 1s ease-in-out infinite' : 'none',
             }}>
               {formatCountdown(nextUpdateCountdown)}
             </div>
-            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, marginTop: 2 }}>
               Next Update
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{
-        display: 'flex', gap: 0, background: 'var(--surface-01)',
-        borderRadius: 'var(--radius-md)', padding: 3, border: '1px solid var(--border-subtle)',
+      {/* Sliding Tab Switcher */}
+      <div ref={tabContainerRef} style={{
+        position: 'relative',
+        background: 'var(--surface-00)',
+        borderRadius: 'var(--radius-md)',
+        padding: 3,
+        border: '1px solid var(--border-subtle)',
       }}>
+        <div style={{
+          position: 'absolute',
+          top: 3, bottom: 3,
+          borderRadius: 'var(--radius-sm)',
+          background: 'linear-gradient(135deg, rgba(139,124,255,0.15), rgba(139,124,255,0.05))',
+          border: '1px solid var(--border-accent)',
+          boxShadow: '0 0 12px rgba(139,124,255,0.1)',
+          transition: 'transform 250ms cubic-bezier(0.22, 1, 0.36, 1), width 250ms cubic-bezier(0.22, 1, 0.36, 1)',
+          ...tabIndicatorStyle,
+        }} />
         {[
           { key: 'waterfall', label: 'SHAP Analysis' },
           { key: 'chart', label: 'Score History' },
         ].map(({ key, label }) => (
           <button
             key={key}
+            ref={(el) => { tabRefs.current[key] = el; }}
             onClick={() => setActiveTab(key)}
             style={{
-              flex: 1, padding: '6px 12px', borderRadius: 'var(--radius-sm)',
-              border: 'none',
-              background: activeTab === key ? 'var(--bg-elevated)' : 'transparent',
-              color: activeTab === key ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontSize: 'var(--text-xs)', fontWeight: activeTab === key ? '600' : '400',
+              flex: 1, padding: '7px 16px', borderRadius: 'var(--radius-sm)',
+              border: 'none', position: 'relative', zIndex: 1,
+              background: 'transparent',
+              color: activeTab === key ? 'var(--accent-purple-bright)' : 'var(--text-muted)',
+              fontSize: 'var(--text-xs)', fontWeight: activeTab === key ? '700' : '500',
               fontFamily: 'var(--font-sans)', cursor: 'pointer', letterSpacing: '0.5px',
-              transition: 'all var(--duration-fast) ease',
+              transition: 'color var(--duration-fast) ease',
+              width: '50%',
             }}
           >
             {label}

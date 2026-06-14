@@ -27,24 +27,52 @@ function Sparkline({ protocol }) {
   const up = (protocol.trend_30d ?? 0) >= 0;
   const trendColor = up ? 'var(--signal-human)' : 'var(--signal-agent)';
 
+  const isLoading = !history;
+
   return (
     <div className="data-row" style={{ padding: '6px 8px' }}>
-      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
         {protocol.protocol}
       </span>
       <div style={{ width: 90, height: 28 }}>
-        <ResponsiveContainer>
-          <LineChart data={history ?? []}>
-            <Line type="monotone" dataKey="human_ratio" stroke={trendColor} strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        {isLoading ? (
+          <div style={{
+            height: '100%', borderRadius: 2,
+            background: 'linear-gradient(90deg, var(--surface-01) 25%, var(--surface-02) 50%, var(--surface-01) 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.5s ease-in-out infinite',
+          }} />
+        ) : (
+          <ResponsiveContainer>
+            <LineChart data={history ?? []}>
+              <Line type="monotone" dataKey="human_ratio" stroke={trendColor} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
-      <span style={{
-        fontSize: 'var(--text-xs)', width: 50, textAlign: 'right',
-        fontFamily: 'var(--font-mono)', fontWeight: 600, color: trendColor,
+      <span className="badge" style={{
+        fontSize: '9px', padding: '2px 8px',
+        background: up ? 'var(--signal-human-glow)' : 'var(--signal-agent-glow)',
+        borderColor: up ? 'var(--signal-human-border)' : 'var(--signal-agent-border)',
+        color: trendColor,
+        fontWeight: 700,
       }}>
-        {protocol.trend_30d != null ? `${up ? '+' : ''}${(protocol.trend_30d * 100).toFixed(1)}%` : '—'}
+        {protocol.trend_30d != null ? `${up ? '+' : ''}${(protocol.trend_30d * 100).toFixed(1)}%` : '\u2014'}
       </span>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 'var(--space-2)' }}>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, height: 12, borderRadius: 2, background: 'linear-gradient(90deg, var(--surface-01) 25%, var(--surface-02) 50%, var(--surface-01) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+          <div style={{ width: 90, height: 28, borderRadius: 2, background: 'linear-gradient(90deg, var(--surface-01) 25%, var(--surface-02) 50%, var(--surface-01) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+          <div style={{ width: 50, height: 18, borderRadius: 20, background: 'linear-gradient(90deg, var(--surface-01) 25%, var(--surface-02) 50%, var(--surface-01) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s ease-in-out infinite' }} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -56,9 +84,7 @@ export function TrendSparklines({ protocols }) {
       <div className="label-caps" style={{ marginTop: 2, marginBottom: 'var(--space-3)' }}>Human ratio change over time</div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {(!protocols || protocols.length === 0) ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', textAlign: 'center', padding: 'var(--space-4)' }}>
-            Trend data loading…
-          </div>
+          <LoadingSkeleton />
         ) : (
           protocols.slice(0, 6).map((p) => <Sparkline key={p.address} protocol={p} />)
         )}
