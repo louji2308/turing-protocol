@@ -63,7 +63,7 @@ const FEATURE_DESCRIPTIONS = {
   'port_0_size_cv': 'Human trade sizes vary dramatically. Agents use fixed sizes.',
 };
 
-export default function FeatureWaterfall({ contributions = [], maxFeatures = 10 }) {
+export default function FeatureWaterfall({ contributions = [], maxFeatures = 10, apiAvailable = true }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredFeature, setHoveredFeature] = useState(null);
 
@@ -81,8 +81,18 @@ export default function FeatureWaterfall({ contributions = [], maxFeatures = 10 
         color: 'var(--text-muted)',
         fontSize: 'var(--text-sm)',
         fontFamily: 'var(--font-mono)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
       }}>
-        Waiting for SHAP analysis...
+        {apiAvailable === false ? (
+          <span style={{ color: 'var(--signal-uncertain-text)' }}>
+            Oracle unreachable — retrying...
+          </span>
+        ) : (
+          <>
+            <span style={{ width: 16, height: 16, border: '2px solid var(--border-subtle)', borderTopColor: 'var(--accent-purple)', borderRadius: '50%', animation: 'spin 800ms linear infinite', display: 'inline-block' }} />
+            Waiting for SHAP analysis...
+          </>
+        )}
       </div>
     );
   }

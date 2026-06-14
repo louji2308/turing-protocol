@@ -151,26 +151,54 @@ class HealthResponse(BaseModel):
     miner_mode: str
 
 
+async def _load_interrogator(timeout=30):
+    """Load the Interrogator model in a thread with a timeout."""
+    loop = asyncio.get_event_loop()
+    try:
+        from scorers.interrogator import Interrogator
+        inst = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: Interrogator(ghost_wallet=config.ghost_wallet)),
+            timeout=timeout,
+        )
+        logger.success(f"Interrogator loaded for scoring | ghost={config.ghost_wallet[:14]}...")
+        return inst
+    except asyncio.TimeoutError:
+        logger.error(f"Interrogator load timed out after {timeout}s — continuing without scorer")
+    except Exception as e:
+        logger.error(f"Failed to load Interrogator: {e}")
+    return None
+
+
+async def _load_fetcher(rpc_url, timeout=15):
+    """Load the MantleDataFetcher in a thread with a timeout."""
+    loop = asyncio.get_event_loop()
+    try:
+        from mantle_fetcher import MantleDataFetcher
+        fetcher = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: MantleDataFetcher(rpc_url)),
+            timeout=timeout,
+        )
+        logger.success("MantleDataFetcher attached to scorer")
+        return fetcher
+    except asyncio.TimeoutError:
+        logger.warning(f"MantleDataFetcher init timed out after {timeout}s")
+    except Exception as e:
+        logger.warning(f"Could not attach MantleDataFetcher: {e}")
+    return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global scorer, interrogator, score_loop, pob_checker, retrainer
 
-    try:
-        from scorers.interrogator import Interrogator
-        interrogator = Interrogator(ghost_wallet=config.ghost_wallet)
-        scorer = interrogator
-        logger.success(f"Interrogator loaded for scoring | ghost={config.ghost_wallet[:14]}...")
-    except Exception as e:
-        logger.error(f"Failed to load Interrogator: {e}")
+    interrogator = await _load_interrogator()
+    scorer = interrogator
+    fetcher = None
 
-    try:
-        from mantle_fetcher import MantleDataFetcher
-        if scorer is not None:
-            fetcher = MantleDataFetcher(rpc_url)
+    if scorer is not None:
+        fetcher = await _load_fetcher(rpc_url)
+        if fetcher:
             scorer.set_fetcher(fetcher)
-            logger.success("MantleDataFetcher attached to scorer")
-    except Exception as e:
-        logger.warning(f"Could not attach MantleDataFetcher: {e}")
 
     if oracle_contract and scorer:
         score_loop = ScoreSubmissionLoop(
@@ -197,7 +225,7 @@ async def lifespan(app: FastAPI):
 
     if interrogator:
         app.state.scorer_instance = scorer
-        app.state.fetcher = fetcher if 'fetcher' in dir() else None
+        app.state.fetcher = fetcher
 
     score_cache = ScoreCache()
     app.state.cache = score_cache
@@ -319,28 +347,47 @@ async def _resolve_address(raw: str) -> str:
 @app.get("/score/{wallet}", response_model=ScoreResponse)
 async def score_wallet(wallet: str, include_explanation: bool = False):
     resolved = await _resolve_address(wallet)
-    if scorer is None:
-        raise HTTPException(status_code=503, detail="Scorer not available")
 
+    # 1. Get on-chain contract score as the authoritative value
+    onchain_hps = None
+    loop = asyncio.get_event_loop()
+    if oracle_contract is not None:
+        try:
+            raw = await loop.run_in_executor(
+                None, lambda: oracle_contract.functions.getScore(resolved).call()
+            )
+            if raw and int(raw) > 0:
+                onchain_hps = int(raw)
+        except Exception:
+            pass
+
+    # 2. Compute ML score (for explanation / fallback)
+    if scorer is None and onchain_hps is None:
+        raise HTTPException(status_code=503, detail="Scorer not available")
     try:
-        result = await asyncio.to_thread(
-            lambda: scorer.score(wallet, use_cache=True, return_explanation=include_explanation)
-        )
-        err = result.get("error")
+        ml_result = None
+        if scorer is not None:
+            ml_result = await asyncio.to_thread(
+                lambda: scorer.score(wallet, use_cache=not include_explanation, return_explanation=include_explanation)
+            )
+
+        err = ml_result.get("error") if ml_result else None
         if err:
             raise HTTPException(status_code=400, detail=err)
+
+        hps = onchain_hps if onchain_hps is not None else (int(ml_result.get("hps", 0)) if ml_result else 0)
         return ScoreResponse(
             wallet=resolved,
-            hps=int(result.get("hps", 0)),
-            uncertainty_hps=int(result.get("uncertainty_hps", 0)),
-            confidence=str(result.get("confidence", "low")),
+            hps=hps,
+            uncertainty_hps=int(ml_result.get("uncertainty_hps", 0)) if ml_result else 0,
+            confidence=str(ml_result.get("confidence", "low")) if ml_result else "low",
             hps_range=(
-                int(result.get("hps_range", [0, 10000])[0]),
-                int(result.get("hps_range", [0, 10000])[1]),
+                int(ml_result.get("hps_range", [0, 10000])[0]) if ml_result else 0,
+                int(ml_result.get("hps_range", [0, 10000])[1]) if ml_result else 10000,
             ),
-            investable=bool(result.get("investable", False)),
-            details=result.get("raw"),
-            explanation=result.get("explanation"),
+            investable=bool(ml_result.get("investable", False)) if ml_result else False,
+            details=ml_result.get("raw") if ml_result else None,
+            explanation=ml_result.get("explanation") if ml_result else None,
         )
     except HTTPException:
         raise

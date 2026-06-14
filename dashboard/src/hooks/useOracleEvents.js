@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import HPSOracleData from '../abi/HPSOracle.json';
 import POBData from '../abi/ProofOfBehavior.json';
+import { ORACLE_API, MANTLE_RPC, POLL_INTERVAL_MS } from '../config';
 
 export function useOracleEvents(ghostAddress) {
   const [ghostScore, setGhostScore] = useState(5000);
@@ -30,7 +31,7 @@ export function useOracleEvents(ghostAddress) {
   }, []);
 
   const fetchOracleStats = useCallback(async () => {
-    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
+    const apiBase = ORACLE_API;
     try {
       const resp = await fetch(`${apiBase}/stats`,         { signal: AbortSignal.timeout(45000) });
       if (resp.ok) {
@@ -39,19 +40,6 @@ export function useOracleEvents(ghostAddress) {
         if (data.model_version) setModelVersion(data.model_version);
         if (data.total_fresh_proofs !== undefined) setTotalFreshProofs(data.total_fresh_proofs);
         if (data.total_minted !== undefined) setTotalMinted(data.total_minted);
-      }
-    } catch {
-    }
-  }, []);
-
-  const fetchLeaderboard = useCallback(async () => {
-    const apiBase = import.meta.env.VITE_ORACLE_API || 'http://localhost:8080';
-    try {
-      const resp = await fetch(`${apiBase}/leaderboard?limit=20`, { signal: AbortSignal.timeout(45000) });
-      if (resp.ok) {
-        const data = await resp.json();
-        setRecentProofs(data.leaderboard || []);
-        if (data.total !== undefined) setTotalMinted(data.total);
       }
     } catch {
     }
@@ -79,6 +67,56 @@ export function useOracleEvents(ghostAddress) {
     setLastUpdateTime(now);
   }, []);
 
+  const fetchScoreFromRestApi = useCallback(async (isActiveRef) => {
+    try {
+      const resp = await fetch(
+        `${ORACLE_API}/score/${ghostAddress}?include_explanation=true`,
+        { signal: AbortSignal.timeout(15000) }
+      );
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!isActiveRef?.current) return;
+      if (data.hps !== undefined) {
+        const newScore = Number(data.hps);
+        setGhostScore(prev => {
+          if (prev !== newScore) {
+            setPreviousScore(prev);
+            updateScore(newScore, newScore > prev ? '\u2191' : '\u2193');
+          }
+          return newScore;
+        });
+        setConnectionStatus('connected');
+      }
+    } catch {
+      /* REST API fallback failed */
+    }
+  }, [ghostAddress, updateScore]);
+
+  const fetchLeaderboard = useCallback(async () => {
+    const apiBase = ORACLE_API;
+    try {
+      const resp = await fetch(`${apiBase}/leaderboard?top_n=20`, { signal: AbortSignal.timeout(45000) });
+      if (resp.ok) {
+        const data = await resp.json();
+        const list = Array.isArray(data) ? data : (data.leaderboard || []);
+        const proofs = list
+          .filter((e) => e.token_id !== undefined && e.token_id !== null)
+          .map((e) => ({
+            wallet: e.wallet,
+            wallet_short: e.wallet ? `${e.wallet.slice(0, 6)}...${e.wallet.slice(-4)}` : '',
+            token_id: e.token_id,
+            score_at_mint: e.score_at_mint ?? e.hps ?? 0,
+            current_score: e.current_score ?? e.hps ?? 0,
+            is_fresh: e.is_fresh ?? (e.hps ?? 0) >= 7000,
+            mint_timestamp: e.mint_timestamp ?? e.last_updated ?? 0,
+          }));
+        if (proofs.length > 0) setRecentProofs(proofs);
+        if (data.total !== undefined) setTotalMinted(data.total);
+      }
+    } catch {
+    }
+  }, []);
+
   useEffect(() => {
     if (!ghostAddress || ghostAddress === '0x0000000000000000000000000000000000000000') {
       setConnectionStatus('no-address');
@@ -88,7 +126,7 @@ export function useOracleEvents(ghostAddress) {
     let isActive = true;
 
     const initialize = async () => {
-      const rpc = import.meta.env.VITE_MANTLE_RPC || 'https://rpc.sepolia.mantle.xyz';
+      const rpc = MANTLE_RPC;
 
       try {
         const provider = new ethers.JsonRpcProvider(rpc);
@@ -198,7 +236,7 @@ export function useOracleEvents(ghostAddress) {
 
         await Promise.all([fetchOracleStats(), fetchLeaderboard()]);
 
-        const pollInterval = Number(import.meta.env.VITE_POLL_INTERVAL_MS) || 30000;
+        const pollInterval = POLL_INTERVAL_MS;
         pollIntervalRef.current = setInterval(async () => {
           if (!isActive) return;
           try {
@@ -221,8 +259,15 @@ export function useOracleEvents(ghostAddress) {
         }, pollInterval);
 
       } catch (err) {
-        console.error('Oracle connection failed:', err);
-        if (isActive) setConnectionStatus('error');
+        console.error('Oracle RPC connection failed:', err);
+        if (isActive) {
+          setConnectionStatus('connecting');
+          fetchScoreFromRestApi({ current: isActive });
+          pollIntervalRef.current = setInterval(() => {
+            if (!isActive) return;
+            fetchScoreFromRestApi({ current: isActive });
+          }, POLL_INTERVAL_MS);
+        }
       }
     };
 

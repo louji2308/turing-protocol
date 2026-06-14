@@ -421,11 +421,15 @@ class MantleDataFetcher:
     async def fetch_protocol_interactors(
         self, protocol_address: str, days: int = 30, max_results: int = 1000
     ) -> list[str]:
-        protocol_address = Web3.to_checksum_address(protocol_address.lower())
+        if not Web3.is_address(protocol_address):
+            logger.warning(f"Invalid protocol address: {protocol_address}")
+            return []
+        protocol_address = Web3.to_checksum_address(protocol_address)
         cutoff_ts = int(time.time()) - days * 86400
         interactors: set[str] = set()
+        loop = asyncio.get_event_loop()
         try:
-            latest = self.w3.eth.block_number
+            latest = await loop.run_in_executor(None, lambda: self.w3.eth.block_number)
             avg_block_time = 2.0
             cutoff_block = max(0, latest - int(days * 86400 / avg_block_time))
             batch_size = 2000
@@ -433,13 +437,13 @@ class MantleDataFetcher:
             while from_block < latest and len(interactors) < max_results:
                 to_block = min(from_block + batch_size, latest)
                 try:
-                    logs = self.w3.eth.get_logs({
+                    logs = await loop.run_in_executor(None, lambda: self.w3.eth.get_logs({
                         "address": protocol_address,
                         "fromBlock": from_block,
                         "toBlock": to_block,
-                    })
+                    }))
                     for log in logs:
-                        tx = self.w3.eth.get_transaction(log["transactionHash"].hex())
+                        tx = await loop.run_in_executor(None, lambda: self.w3.eth.get_transaction(log["transactionHash"].hex()))
                         if tx and tx["from"]:
                             interactors.add(tx["from"].lower())
                 except Exception:
@@ -448,7 +452,7 @@ class MantleDataFetcher:
         except Exception as e:
             logger.debug(f"fetch_protocol_interactors eth_getLogs failed: {e}")
             try:
-                txlist = self._fetch_from_explorer(protocol_address, max_results)
+                txlist = await loop.run_in_executor(None, lambda: self._fetch_from_explorer(protocol_address, max_results))
                 for tx in txlist:
                     if tx.get("to", "").lower() == protocol_address.lower():
                         interactors.add(tx.get("from", "").lower())

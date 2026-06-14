@@ -379,13 +379,12 @@ def hybrid_hps(
     else:
         age_days = 0.0
 
-    # Step 2: Adversarial Disagreement Penalty
-    # When ML >> Dim on a young wallet, the ML model is likely being
-    # fooled by adversarial mimicry while structural dimensions flag bot.
-    # Penalty decays linearly to zero at 90 days.
-    disagreement = max(0, ml_hps - dim_hps)
+    # Step 2: Excess Adversarial Disagreement
+    # Penalty only applies when ML far exceeds Dim (>1500 gap),
+    # indicating adversarial mimicry on young wallets.
+    disagreement_excess = max(0, (ml_hps - dim_hps) - 1500)
     age_factor = max(0.0, 1.0 - age_days / 90.0)
-    p_disagree = disagreement * age_factor
+    p_disagree = disagreement_excess * age_factor
 
     # Step 3: Apply penalty
     h_adj = h_base - p_disagree

@@ -29,6 +29,7 @@ export default function InterrogatorPanel({
   modelVersion = null,
   connectionStatus = 'connecting',
   loading = false,
+  apiAvailable = true,
 }) {
   const [activeTab, setActiveTab] = useState('waterfall');
   const [nextUpdateCountdown, setNextUpdateCountdown] = useState(null);
@@ -176,7 +177,7 @@ export default function InterrogatorPanel({
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {activeTab === 'waterfall' ? (
           <div className="scroll-area" style={{ height: '100%' }}>
-            <FeatureWaterfall contributions={featureContributions} maxFeatures={12} />
+            <FeatureWaterfall contributions={featureContributions} maxFeatures={12} apiAvailable={apiAvailable} />
           </div>
         ) : (
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
