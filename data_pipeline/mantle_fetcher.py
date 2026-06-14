@@ -2,6 +2,7 @@
 MantleDataFetcher with RPC fallback when explorer API is unavailable.
 """
 
+import asyncio
 from web3 import Web3
 import pandas as pd
 import numpy as np
@@ -434,6 +435,7 @@ class MantleDataFetcher:
             cutoff_block = max(0, latest - int(days * 86400 / avg_block_time))
             batch_size = 2000
             from_block = cutoff_block
+            empty_batches = 0
             while from_block < latest and len(interactors) < max_results:
                 to_block = min(from_block + batch_size, latest)
                 try:
@@ -442,15 +444,25 @@ class MantleDataFetcher:
                         "fromBlock": from_block,
                         "toBlock": to_block,
                     }))
-                    for log in logs:
-                        tx = await loop.run_in_executor(None, lambda: self.w3.eth.get_transaction(log["transactionHash"].hex()))
-                        if tx and tx["from"]:
-                            interactors.add(tx["from"].lower())
+                    if logs:
+                        empty_batches = 0
+                        for log in logs:
+                            tx = await loop.run_in_executor(None, lambda: self.w3.eth.get_transaction(log["transactionHash"].hex()))
+                            if tx and tx["from"]:
+                                interactors.add(tx["from"].lower())
+                    else:
+                        empty_batches += 1
+                        # If 10 consecutive batches (20k blocks) have zero logs, stop scanning
+                        if empty_batches >= 10 and not interactors:
+                            break
                 except Exception:
                     pass
                 from_block = to_block + 1
         except Exception as e:
             logger.debug(f"fetch_protocol_interactors eth_getLogs failed: {e}")
+
+        # If RPC scan found nothing, try explorer API fallback
+        if not interactors:
             try:
                 txlist = await loop.run_in_executor(None, lambda: self._fetch_from_explorer(protocol_address, max_results))
                 for tx in txlist:
@@ -458,6 +470,7 @@ class MantleDataFetcher:
                         interactors.add(tx.get("from", "").lower())
             except Exception as e2:
                 logger.debug(f"fetch_protocol_interactors explorer fallback failed: {e2}")
+
         return list(interactors)[:max_results]
 
     async def fetch_staking_events(self, wallet: str) -> list[dict]:

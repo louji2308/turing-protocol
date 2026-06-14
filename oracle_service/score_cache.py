@@ -210,6 +210,31 @@ class ScoreCache:
         except Exception as e:
             logger.debug(f"Model version cache error: {e}")
 
+    def mark_intelligence_cycle_completed(self):
+        try:
+            conn = self._get_conn()
+            conn.row_factory = None
+            conn.execute(
+                "INSERT OR REPLACE INTO model_meta VALUES (?, ?)",
+                ("intelligence_cycle_completed_at", str(int(time.time()))),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"mark_intelligence_cycle_completed error: {e}")
+
+    def get_intelligence_cycle_completed_at(self) -> Optional[int]:
+        try:
+            conn = self._get_conn()
+            conn.row_factory = None
+            row = conn.execute(
+                "SELECT value FROM model_meta WHERE key='intelligence_cycle_completed_at'"
+            ).fetchone()
+            conn.close()
+            return int(row[0]) if row else None
+        except Exception:
+            return None
+
     def clear_expired(self, max_age_seconds: int = 86400):
         try:
             conn = self._get_conn()

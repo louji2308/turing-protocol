@@ -44,8 +44,6 @@ async def list_clusters(
     cache: ScoreCache = Depends(get_cache),
 ):
     clusters = cache.get_sybil_clusters(min_size=min_size, risk_level=risk_level)
-    if not clusters:
-        raise HTTPException(status_code=503, detail="insufficient_data: sybil cycle has not run yet")
     return [ClusterSummary(**c) for c in clusters]
 
 

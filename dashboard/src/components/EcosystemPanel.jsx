@@ -76,8 +76,23 @@ export function EcosystemPanel() {
           <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
             Intelligence layer offline
           </div>
-          <div style={{ fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)' }}>
-            {error} · retrying every 60s
+          <div style={{ fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', maxWidth: 300 }}>
+            {error.includes('fetch') ? 'Oracle service unreachable' : error} · retrying every 60s
+          </div>
+        </div>
+      ) : !protocols || protocols.length === 0 ? (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', gap: 10, padding: 'var(--space-6)',
+          color: 'var(--text-muted)', textAlign: 'center',
+          border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-lg)',
+        }}>
+          <Activity size={26} color="var(--text-disabled)" />
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--signal-uncertain-text)' }}>
+            Intelligence layer initializing…
+          </div>
+          <div style={{ fontSize: 'var(--text-2xs)', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
+            Computing protocol scores · first data appears in ~10 min after restart
           </div>
         </div>
       ) : (

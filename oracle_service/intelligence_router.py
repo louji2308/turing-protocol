@@ -20,6 +20,40 @@ config = OracleConfig()
 
 
 # -------------------------------------------------------------------
+# Status endpoint
+# -------------------------------------------------------------------
+
+class IntelligenceStatus(BaseModel):
+    healthy: bool
+    protocols_computed: int
+    protocols_total: int
+    smart_money_computed: bool
+    message: str
+
+
+@router.get("/status", response_model=IntelligenceStatus)
+async def intelligence_status(cache: ScoreCache = Depends(get_cache)):
+    rows = cache.get_latest_protocol_health()
+    computed = len(rows)
+    total = len(config.mantle_protocols)
+    smart_money = bool(cache.get_latest_smart_money_flows(period_days=14))
+    cycle_done = cache.get_intelligence_cycle_completed_at() is not None
+    if computed > 0:
+        msg = f"{computed}/{total} protocols scored"
+    elif cycle_done:
+        msg = f"cycle completed — no protocol interactors found on this network (testnet)"
+    else:
+        msg = "first computation cycle in progress — data appears within ~10 min of service start"
+    return IntelligenceStatus(
+        healthy=computed > 0,
+        protocols_computed=computed,
+        protocols_total=total,
+        smart_money_computed=smart_money,
+        message=msg,
+    )
+
+
+# -------------------------------------------------------------------
 # Pydantic response models
 # -------------------------------------------------------------------
 
@@ -150,7 +184,7 @@ def get_scorer() -> WalletScorer:
 async def list_protocols(cache: ScoreCache = Depends(get_cache)) -> list[ProtocolHumanness]:
     rows = cache.get_latest_protocol_health()
     if not rows:
-        raise HTTPException(status_code=503, detail="insufficient_data: intelligence cycle has not run yet")
+        return []
     out = []
     for r in rows:
         trend_7d = cache.compute_trend(r["protocol_address"], "human_ratio", days=7)
@@ -238,7 +272,12 @@ async def smart_money_flows(
 ) -> SmartMoneyFlowsResponse:
     rows = cache.get_latest_smart_money_flows(period_days=days)
     if not rows:
-        raise HTTPException(status_code=503, detail="insufficient_data")
+        smart_wallets = cache.get_wallets_above_threshold(config.smart_money_hps_threshold)
+        return SmartMoneyFlowsResponse(
+            period_days=days, smart_wallet_count=len(smart_wallets),
+            threshold_hps=config.smart_money_hps_threshold,
+            top_flows=[], computed_at=int(time.time()),
+        )
     smart_wallets = cache.get_wallets_above_threshold(config.smart_money_hps_threshold)
     flows = [
         SmartMoneyFlow(
