@@ -230,10 +230,12 @@ async def lifespan(app: FastAPI):
     score_cache = ScoreCache()
     app.state.cache = score_cache
 
-    if app.state.fetcher and app.state.scorer_instance:
+    fetcher_attr = getattr(app.state, 'fetcher', None)
+    scorer_attr = getattr(app.state, 'scorer_instance', None)
+    if fetcher_attr and scorer_attr:
         intelligence_agg = IntelligenceAggregator(
             cache=score_cache,
-            fetcher=app.state.fetcher,
+            fetcher=fetcher_attr,
             scorer=interrogator,
         )
         asyncio.create_task(intelligence_agg.run_forever())
